@@ -51,6 +51,7 @@ pub struct MetricParameters {
 
     pub cluster_rolls: Option<WeightedParams<cluster_rolls::Parameters>>,
     pub scissoring: Option<WeightedParams<scissoring::Parameters>>,
+    pub scissors: Option<WeightedParams<scissors::Parameters>>,
     pub symmetric_handswitches: Option<WeightedParams<symmetric_handswitches::Parameters>>,
     pub finger_repeats: Option<WeightedParams<finger_repeats::Parameters>>,
     pub manual_bigram_penalty: Option<WeightedParams<manual_bigram_penalty::Parameters>>,
@@ -155,10 +156,10 @@ impl Evaluator {
         // bigram metrics
         add_metric!(bigram_metric, cluster_rolls, ClusterRolls);
         add_metric!(bigram_metric, scissoring, Scissoring);
+        add_metric!(bigram_metric, scissors, Scissors);
         add_metric!(bigram_metric, finger_repeats, FingerRepeats);
         add_metric!(bigram_metric, manual_bigram_penalty, ManualBigramPenalty);
         add_metric!(bigram_metric, movement_pattern, MovementPattern);
-        add_metric!(bigram_metric, roll_stats, RollStats);
         //add_metric!(
         //    bigram_metric,
         //    no_handswitch_after_unbalancing_key,
