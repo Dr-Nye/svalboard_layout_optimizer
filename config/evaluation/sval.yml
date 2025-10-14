@@ -45,7 +45,7 @@ metrics:
       null: null
 
   modifier_usage:
-    enabled: true
+    enabled: false
     weight: 100.0
     normalization:
       type: weight_found
@@ -632,7 +632,7 @@ metrics:
         # Right pinky positions
         [[23, 1], [23, 1]]: 0.5 # right pinky north
         [[22, 2], [22, 2]]: 0.5 # right pinky west
-        [[23, 2], [23, 2]]: 0.3 # right pinky center (home)
+        [[23, 2], [23, 2]]: 0.3 # right pinky center
         [[24, 2], [24, 2]]: 0.5 # right pinky east
         [[23, 3], [23, 3]]: 0.5 # right pinky south
 
