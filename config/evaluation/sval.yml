@@ -534,7 +534,7 @@ metrics:
 
   cluster_rolls:
     enabled: true
-    weight: 1000.0
+    weight: 100.0
     normalization:
       type: weight_found
       value: 1.0
@@ -550,69 +550,45 @@ metrics:
       #     etc.
       costs:
         Center:
-          In: 1.0
           North: 3.0
-          Out: 1.0
           South: 0.0
+          In: 1.0
+          Out: 2.0
         North:
-          Center: 3.5
-          In: 2.5
-          Out: 3.0
-          South: 7.0
+          Center: 2.0
+          South: 5.0
+          In: 3.0
+          Out: 4.0
         South:
-          Center: 5.5
-          In: 4.5
-          North: 7.0
-          Out: 5.0
+          Center: 1.0
+          North: 6.0
+          In: 2.0
+          Out: 3.0
         In:
-          Center: 6.0
-          North: 3.5
-          Out: 9.0
-          South: 3.0
-        Out:
-          Center: 6.0
-          In: 9.0
+          Center: 2.0
           North: 4.0
-          South: 3.5
+          South: 2.0
+          Out: 5.0
+        Out:
+          Center: 3.0
+          North: 5.0
+          South: 3.0
+          In: 5.0
         Pad:
           Up: 0.5
         Up:
           Pad: 3.0
 
       finger_multipliers:
-        Pinky: 1.5
-        Ring: 1.25
+        Pinky: 2.0
+        Ring: 1.5
         Middle: 1.0
         Index: 0.75
         Thumb: 1.0
 
-  # Scissoring, here, adds some nuance to movement_pattern: it accounts for the
-  # relative cost of changing direction on adjacent fingers (such as a south on
-  # ring followed by a north on middle). Of special note is any pattern that
-  # causes two laterals to move towards each other -- those are a pain and
-  # should be optimized against.
-  scissoring:
-    enabled: true
-    weight: 1000.0
-    normalization:
-      type: weight_found
-      value: 1.0
-    params:
-      # cost for a south-north or north-south scissor
-      south_north_cost: 1.0
-      # cost for an inward lateral squeezing motion
-      lateral_squeeze_cost: 6.0
-      # cost for a lateral splay
-      lateral_splay_cost: 2.0
-      # cost for two identical laterals in sequence
-      lateral_series_cost: 2.0
-      # cost for an lateral-to-adjacent-center move
-      lateral_center_cost: 4.0
-
-  # Depending on which fingers of the same hand are used to hit the keys of a bigram,
-  # how many rows were crossed and in which direction the movement occurs, costs are
-  # counted.
-  movement_pattern:
+      # High-frequency roll penalty
+      critical_bigram_fraction: 0.0003
+      critical_bigram_factor: 50.0
     enabled: true
     weight: 25.0
     normalization:
