@@ -57,9 +57,9 @@ pub struct MetricParameters {
     pub movement_pattern: Option<WeightedParams<movement_pattern::Parameters>>,
     pub no_handswitch_after_unbalancing_key:
         Option<WeightedParams<no_handswitch_after_unbalancing_key::Parameters>>,
-    pub roll_stats: Option<WeightedParams<roll_stats::Parameters>>,
 
     pub irregularity: Option<WeightedParams<irregularity::Parameters>>,
+    pub trigram_stats: Option<WeightedParams<trigram_stats::Parameters>>,
     pub no_handswitch_in_trigram: Option<WeightedParams<no_handswitch_in_trigram::Parameters>>,
     pub secondary_bigrams: Option<WeightedParams<secondary_bigrams::Parameters>>,
     pub trigram_finger_repeats: Option<WeightedParams<trigram_finger_repeats::Parameters>>,
@@ -167,6 +167,7 @@ impl Evaluator {
         //add_metric!(bigram_metric, symmetric_handswitches, SymmetricHandswitches);
 
         // trigram_metrics
+        add_metric!(trigram_metric, trigram_stats, TrigramStats);
         add_metric!(
             trigram_metric,
             no_handswitch_in_trigram,
