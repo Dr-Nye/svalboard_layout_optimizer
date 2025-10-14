@@ -1,14 +1,14 @@
 metrics:
   finger_balance:
     enabled: true
-    weight: 100.0
+    weight: 25.0
     normalization:
       type: fixed
       value: 1.0
     params:
       # Thumb values are ignored.
       intended_loads:
-        [Left, Pinky]: 1
+        [Left, Pinky]: 1.1
         [Left, Ring]: 1.3
         [Left, Middle]: 1.9
         [Left, Index]: 2
@@ -17,9 +17,9 @@ metrics:
         [Right, Index]: 2
         [Right, Middle]: 1.9
         [Right, Ring]: 1.3
-        [Right, Pinky]: 1
+        [Right, Pinky]: 1.1
       finger_factors:
-        Pinky: 1.5
+        Pinky: 2.0
         Ring: 1.25
         Middle: 1.0
         Index: 0.75
@@ -589,57 +589,28 @@ metrics:
       # High-frequency roll penalty
       critical_bigram_fraction: 0.0003
       critical_bigram_factor: 50.0
+
+  # Key-cost based scissoring that penalizes weaker fingers doing harder work
+  scissors:
     enabled: true
-    weight: 25.0
+    weight: 100.0
     normalization:
       type: weight_found
       value: 1.0
     params:
-      # from: Finger for first symbol of the bigram
-      # to: Finger for second symbol of the bigram
-      # cost: Cost to count for such a movement
-      finger_switch_factor:
-        # LEFT HAND
-        # Pinky transitions (highest penalties for moving from weak finger)
-        - { from: [Left, Pinky], to: [Left, Ring], cost: 4 }
-        - { from: [Left, Pinky], to: [Left, Middle], cost: 2.5 }
-        - { from: [Left, Pinky], to: [Left, Index], cost: 0.5 }
-
-        # Ring transitions (emphasizing ring-pinky coupling)
-        - { from: [Left, Ring], to: [Left, Pinky], cost: 5 }
-        - { from: [Left, Ring], to: [Left, Middle], cost: 1.5 }
-        - { from: [Left, Ring], to: [Left, Index], cost: 0.5 }
-
-        # Middle transitions (moderate cost except with pinky)
-        - { from: [Left, Middle], to: [Left, Pinky], cost: 5 }
-        - { from: [Left, Middle], to: [Left, Ring], cost: 2 }
-        - { from: [Left, Middle], to: [Left, Index], cost: 0 }
-
-        # Index transitions (generally easiest, except to pinky)
-        - { from: [Left, Index], to: [Left, Pinky], cost: 2.5 }
-        - { from: [Left, Index], to: [Left, Ring], cost: 2.5 }
-        - { from: [Left, Index], to: [Left, Middle], cost: 0.5 }
-
-        # RIGHT HAND (mirrored costs)
-        # Pinky transitions
-        - { from: [Right, Pinky], to: [Right, Ring], cost: 4 }
-        - { from: [Right, Pinky], to: [Right, Middle], cost: 2.5 }
-        - { from: [Right, Pinky], to: [Right, Index], cost: 0.5 }
-
-        # Ring transitions
-        - { from: [Right, Ring], to: [Right, Pinky], cost: 5 }
-        - { from: [Right, Ring], to: [Right, Middle], cost: 1.5 }
-        - { from: [Right, Ring], to: [Right, Index], cost: 0.5 }
-
-        # Middle transitions
-        - { from: [Right, Middle], to: [Right, Pinky], cost: 5 }
-        - { from: [Right, Middle], to: [Right, Ring], cost: 2 }
-        - { from: [Right, Middle], to: [Right, Index], cost: 0 }
-
-        # Index transitions
-        - { from: [Right, Index], to: [Right, Pinky], cost: 2.5 }
-        - { from: [Right, Index], to: [Right, Ring], cost: 2.5 }
-        - { from: [Right, Index], to: [Right, Middle], cost: 0.5 }
+      # Factor for Full Scissor Vertical (North-South opposition)
+      full_scissor_vertical_factor: 5.0
+      # Factor for Full Scissor Squeeze (fingers moving inward)
+      full_scissor_squeeze_factor: 5.0
+      # Factor for Full Scissor Splay (fingers moving outward)
+      full_scissor_splay_factor: 5.0
+      # Factor for Half Scissor (diagonal lateral+vertical)
+      half_scissor_factor: 2.5
+      # Factor for Lateral Stretch (lateral+center)
+      lateral_stretch_factor: 1.0
+      # High-frequency scissor penalty
+      critical_bigram_fraction: 0.0003
+      critical_bigram_factor: 50.0
 
   manual_bigram_penalty:
     enabled: true
