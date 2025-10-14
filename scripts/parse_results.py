@@ -19,19 +19,21 @@ METRICS_ORDER = [
     ("Finger Disbalance", "Finger Balance", "message_only", None),
     ("Cluster Rolls", "Cluster Rolls", "number", 2),
     ("Scissoring", "Scissoring", "number", 2),
+    ("Scissors", "Scissors", "number", 2),
     ("Key Costs", "Key Costs", "number", 2),
-    ("Movement Pattern", "Movement Pattern", "number", 2),
     ("Manual Bigram Penalty", "Manual Bigram Penalty", "number", 2),
     ("Cluster Rolls Worst", "Cluster Rolls", "worst_only", None),
     ("Scissoring Worst", "Scissoring", "worst_only", None),
+    ("Scissors Worst", "Scissors", "worst_only", None),
     ("Movement Pattern Worst", "Movement Pattern", "worst_only", None),
     ("Manual Bigram Penalty Worst", "Manual Bigram Penalty", "worst_only", None),
     ("Secondary Bigrams Worst", "Secondary Bigrams", "worst_only", None),
     ("Trigrams Worst", "No Handswitch in Trigram", "worst_only", None),
-    ("Roll Statistics", "Roll Statistics", "message_only", None),
+    ("Movement Pattern", "Movement Pattern", "number", 2),
+    ("Trigram Statistics", "Trigram Statistics", "message_only", None),
 ]
 
-COLUMN_HEADERS = ["Layout"] + [display for display, *_ in METRICS_ORDER]
+COLUMN_HEADERS = ["Layout", "Homerow"] + [display for display, *_ in METRICS_ORDER]
 
 METRICS_DESCRIPTION = """## Metrics Description
 
@@ -47,6 +49,8 @@ METRICS_DESCRIPTION = """## Metrics Description
 
 **scissoring**: Penalizes uncomfortable adjacent finger movements
 
+**scissors**: Combines key costs with scissoring penalties for adjacent finger movements
+
 **symmetric_handswitches**: Rewards using symmetrical key positions when switching between hands, but only for center, south, and index/middle north keys
 
 **movement_pattern**: Assigns costs to finger transitions within the same hand. If the movement is center key to center key or south key to south key, there is no penalty
@@ -57,7 +61,11 @@ METRICS_DESCRIPTION = """## Metrics Description
 
 **no_handswitch_in_trigram**: Penalizes typing three consecutive keys on the same hand
 
-**trigram_rolls**: Rewards comfortable inward rolling motions and slightly less for outward rolls in three-key sequences. Center and south keys only
+**trigram_statistics**: Provides statistics on rolls and redirects:
+  - **Bigram roll in/out**: Rolls are 3-key sequences (2,1 or 1,2) with hand alternation where the 2 same-hand keys use different fingers. Inward rolls move towards the index finger, outward rolls move towards the pinky
+  - **Center->South**: Same-finger vertical movement from center row to south row in a roll pattern
+  - **Redirect**: One-handed trigrams where direction changes (e.g., QWERTY "SAD": outward then inward)
+  - **Weak redirect**: Redirects that don't involve the index finger, considered harder to type
 
 """
 
@@ -86,7 +94,7 @@ def load_bigram_frequencies(corpus_name: str) -> dict[str, float]:
             if len(parts) >= 2:
                 freq = float(parts[0])
                 bigram = parts[1]
-                if len(bigram) == 2 and bigram.isalpha():
+                if len(bigram) == 2:
                     frequencies[bigram] = freq
     return frequencies
 
@@ -127,7 +135,7 @@ def extract_worst_bigrams(message: str) -> list[tuple[str, float]]:
     if ";" in worst_section:
         worst_section = worst_section.split(";")[0]
 
-    pattern = r"(.{2}) \(([0-9.]+)%\)"
+    pattern = r"(.{2}) \(\s*([0-9.]+)%\)"
     matches = re.findall(pattern, worst_section)
     return [(bigram, float(percent)) for bigram, percent in matches]
 
@@ -138,17 +146,29 @@ def add_frequencies(message: str, bigram_frequencies: dict[str, float]) -> str:
     if not worst_bigrams or "Worst:" not in message:
         return message
 
+    # Process all bigrams - keep only those with freq >= 0.01%
     enhanced_parts = []
     for bigram, percent in worst_bigrams:
         freq = bigram_frequencies.get(bigram, 0)
-        freq_str = f"{freq:.2f}%".rstrip("0").rstrip(".")
-        enhanced_parts.append(f"{bigram} ({percent}%, freq: {freq_str})")
+        if freq >= 0.01:
+            # Keep bigrams with sufficient frequency
+            enhanced_parts.append((bigram, percent, freq))
+        # Skip all bigrams below threshold or not found
 
-    if not enhanced_parts:
+    # Sort by frequency descending
+    enhanced_parts.sort(key=lambda x: -x[2])
+
+    # Build the enhanced message
+    formatted_parts = []
+    for bigram, percent, freq in enhanced_parts:
+        freq_str = f"{freq:.2f}%".rstrip("0").rstrip(".")
+        formatted_parts.append(f"{bigram} ({percent}%, freq: {freq_str})")
+
+    if not formatted_parts:
         return message
 
     before_worst = message.split("Worst:")[0]
-    enhanced_message = f"{before_worst}Worst: {', '.join(enhanced_parts)}"
+    enhanced_message = f"{before_worst}Worst: {', '.join(formatted_parts)}"
 
     if ";" in message:
         after_semicolon = message.split(";", 1)[1]
@@ -213,7 +233,13 @@ def process_layout_metrics(
             message = core["message"]
 
             if (
-                core["name"] in ["Scissoring", "Cluster Rolls", "Manual Bigram Penalty"]
+                core["name"]
+                in [
+                    "Scissoring",
+                    "Cluster Rolls",
+                    "Manual Bigram Penalty",
+                    "Scissors",
+                ]
                 and bigram_frequencies
             ):
                 message = add_frequencies(message, bigram_frequencies)
@@ -227,6 +253,27 @@ def process_layout_metrics(
     return metrics_data
 
 
+def extract_homerow(layout: str) -> str:
+    """Extract center keys (homerow) from layout string.
+
+    Layout is 8 clusters of 5 chars + 1 thumb.
+    Each cluster: N O C I S (North, Out, Center, In, South)
+    Center is at position 2 in each cluster (0-indexed).
+    Returns centers from left ring to right ring (6 characters, excluding pinkies).
+    """
+    if len(layout) < 40:
+        return ""
+
+    centers = []
+    # Clusters 1-6: left ring, left middle, left index, right index, right middle, right ring
+    # (skipping cluster 0 = left pinky and cluster 7 = right pinky)
+    for cluster_idx in range(0, 8):
+        center_pos = cluster_idx * 5 + 2
+        centers.append(layout[center_pos])
+
+    return "".join(centers)
+
+
 def build_layout_row(
     layout: str, total_cost: float, metrics_data: dict[str, dict]
 ) -> dict:
@@ -235,6 +282,7 @@ def build_layout_row(
     """
     row = {}
     row[COLUMN_HEADERS[0]] = layout  # "Layout"
+    row[COLUMN_HEADERS[1]] = extract_homerow(layout)  # "Homerow"
 
     for display_header, metric_name, format_type, decimals in METRICS_ORDER:
         if format_type == "number" and display_header == "Total Cost":
@@ -362,17 +410,37 @@ def parse_diagrams(txt_file: Path, output_dir: Path) -> list[tuple[str, str]]:
 
 
 # =============================================================================
+# COLUMN FILTERING
+# =============================================================================
+
+
+def filter_empty_columns(records: list[dict]) -> list[str]:
+    """Return list of column headers that have non-empty values based on first record."""
+    if not records:
+        return COLUMN_HEADERS
+
+    first_record = records[0]
+    non_empty_headers = []
+    for header in COLUMN_HEADERS:
+        if str(first_record.get(header, "")).strip() != "":
+            non_empty_headers.append(header)
+
+    return non_empty_headers
+
+
+# =============================================================================
 # EXPORT FUNCTIONS
 # =============================================================================
 
 
 def export_csv(records: list[dict], output_file: Path) -> None:
     """Export parsed layout records to CSV file."""
+    filtered_headers = filter_empty_columns(records)
     with open(output_file, "w", newline="", encoding="utf-8") as f:
         writer = csv.writer(f)
-        writer.writerow(COLUMN_HEADERS)
+        writer.writerow(filtered_headers)
         for rec in records:
-            writer.writerow([rec[h] for h in COLUMN_HEADERS])
+            writer.writerow([rec.get(h, "") for h in filtered_headers])
 
 
 def export_markdown(
@@ -381,6 +449,8 @@ def export_markdown(
     output_file: Path,
 ) -> None:
     """Export parsed layout records to markdown with summary table and detailed sections."""
+    filtered_headers = filter_empty_columns(records)
+
     with open(output_file, "w", encoding="utf-8") as f:
         f.write("# Keyboard Layout Results\n\n")
 
@@ -396,27 +466,50 @@ def export_markdown(
         f.write("\n".join(toc_items) + "\n\n")
 
         f.write("## Summary\n\n")
-        summary_headers = [
-            "SVG",
-            "Total Cost",
-            "Hand Balance",
-            "Finger Balance",
-            "Cluster Rolls",
-            "Scissoring",
-            "Manual Bigram Penalty",
-            "Layout",
-        ]
-        f.write("| " + " | ".join(summary_headers) + " |\n")
-        f.write("|" + "|".join(["--------"] * len(summary_headers)) + "|\n")
 
-        metrics = [
+        # Filter summary headers to only include those with data
+        all_summary_headers = [
+            "SVG",
+            "Homerow",
             "Total Cost",
             "Hands Disbalance",
             "Finger Disbalance",
             "Cluster Rolls",
             "Scissoring",
+            "Scissors",
             "Manual Bigram Penalty",
+            "Layout",
         ]
+
+        # Map display names to actual column names for filtering
+        summary_mapping = {
+            "SVG": "SVG",  # Special case, always included if SVGs exist
+            "Homerow": "Homerow",  # Always included
+            "Total Cost": "Total Cost",
+            "Hands Disbalance": "Hands Disbalance",
+            "Finger Disbalance": "Finger Disbalance",
+            "Cluster Rolls": "Cluster Rolls",
+            "Scissoring": "Scissoring",
+            "Scissors": "Scissors",
+            "Manual Bigram Penalty": "Manual Bigram Penalty",
+            "Layout": "Layout",  # Always included
+        }
+
+        summary_headers = []
+        metrics = []
+
+        for header in all_summary_headers:
+            if header in ["SVG", "Layout", "Homerow"]:
+                # Always include SVG, Homerow, and Layout columns
+                summary_headers.append(header)
+                if header not in ["SVG", "Layout"]:
+                    metrics.append(summary_mapping[header])
+            elif summary_mapping[header] in filtered_headers:
+                summary_headers.append(header)
+                metrics.append(summary_mapping[header])
+
+        f.write("| " + " | ".join(summary_headers) + " |\n")
+        f.write("|" + "|".join(["--------"] * len(summary_headers)) + "|\n")
 
         layout_to_svg = dict(generated_layouts) if generated_layouts else {}
         for rec in records:
@@ -443,7 +536,7 @@ def export_markdown(
 
             metrics_data = [
                 (header, str(rec.get(header, "")))
-                for header in COLUMN_HEADERS[1:]
+                for header in filtered_headers[1:]
                 if "Worst" not in header
                 and header != "Total Cost"
                 and rec.get(header, "")
@@ -456,7 +549,7 @@ def export_markdown(
 
             worst_cases = [
                 (header.replace(" Worst", ""), rec.get(header, ""))
-                for header in COLUMN_HEADERS[1:]
+                for header in filtered_headers[1:]
                 if "Worst" in header and rec.get(header, "")
             ]
             if worst_cases:
