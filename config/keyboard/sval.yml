@@ -2,7 +2,9 @@
 
 keyboard:
   matrix_positions:
-    # finger keys (north west center east south)
+    # finger keys (north out center in south)
+    # Left fingers: out=west(away), in=east(toward center)
+    # Right fingers: out=east(away), in=west(toward center)
     - [
       # left pinky
                [ 2, 1],
@@ -52,7 +54,9 @@ keyboard:
 
   # should actually just be the same as above
   positions:
-    # finger keys (north west center east south)
+    # finger keys (north out center in south)
+    # Left fingers: out=west(away), in=east(toward center)
+    # Right fingers: out=east(away), in=west(toward center)
     - [
       # left pinky
                [ 2, 1],
@@ -107,10 +111,10 @@ keyboard:
       North, Out, Center, In, South,
       North, Out, Center, In, South,
       North, Out, Center, In, South,
-      North, Out, Center, In, South,
+      North, In, Center, Out, South,
 
       # right hand
-      North, In, Center, Out, South,
+      North, Out, Center, In, South,
       North, In, Center, Out, South,
       North, In, Center, Out, South,
       North, In, Center, Out, South,
