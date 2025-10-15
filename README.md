@@ -156,14 +156,14 @@ For more control, use the compiled binaries directly:
 ```bash
 # Evaluate a specific layout
 cargo run --bin evaluate -- \
-  --layout-config [config/keyboard/sval.yml](config/keyboard/sval.yml) \
-  --ngrams [ngrams/eng_granite](ngrams/eng_granite) \
+  --layout-config config/keyboard/sval.yml \
+  --ngrams ngrams/eng_granite \
   "your layout string here"
 
 # Optimize from a starting layout
 cargo run --bin optimize_sa -- \
-  --layout-config [config/keyboard/sval.yml](config/keyboard/sval.yml) \
-  --ngrams [ngrams/eng_fra](ngrams/eng_fra) \
+  --layout-config config/keyboard/sval.yml \
+  --ngrams ngrams/eng_granite \
   --start-layouts "starting layout" \
   --append-solutions-to results.txt
 ```
