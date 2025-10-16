@@ -1,66 +1,44 @@
-//! Key-cost-based scissoring metric that uses the keyboard's key costs to determine
-//! when weaker fingers are forced to do harder work while stronger adjacent fingers
-//! get easier positions - the core of what makes scissors uncomfortable.
+//! Key-cost-based scissoring metric for adjacent finger movements.
 //!
-//! ## Algorithm Overview
+//! ## Core Principle
 //!
-//! This metric identifies and penalizes "scissor" motions between adjacent fingers where
-//! there's a significant cost imbalance. Unlike traditional scissoring metrics that apply
-//! uniform penalties, this approach scales penalties based on the actual difficulty
-//! difference between the keys involved.
+//! Identifies uncomfortable "scissor" motions where adjacent fingers have mismatched
+//! effort levels (e.g., weak finger doing hard work while strong finger gets easy work).
+//! Penalties scale proportionally with the absolute cost difference between keys:
 //!
-//! ### Core Principle
+//! ```
+//! penalty = factor × |cost_from - cost_to|
+//! ```
 //!
-//! The algorithm detects when adjacent fingers perform movements with mismatched effort:
-//! - A weak finger (e.g., pinky) doing hard work (reaching to North) while
-//! - A strong finger (e.g., index) gets easy work (staying at Center)
+//! Key costs are defined in the keyboard configuration (`key_costs` section) and represent
+//! the difficulty of reaching each position. Factors are configured per movement type in
+//! the evaluation metrics configuration.
 //!
-//! This creates an uncomfortable "scissor" motion where fingers work against each other.
+//! ## Movement Classification
 //!
-//! ### Movement Classification
+//! **Full Scissor** - Maximum anatomical conflict:
+//! - **Vertical** (North ↔ South): Opposite vertical directions
+//! - **Squeeze** (In ↔ Out, inward motion): Fingers moving toward each other (more uncomfortable)
+//! - **Splay** (In ↔ Out, outward motion): Fingers moving apart (less uncomfortable)
 //!
-//! **Full Scissor Bigrams (FSB)** - Maximum anatomical conflict:
-//! - Vertical: North ↔ South (opposite directions)
-//! - Lateral: In ↔ Out (squeeze/splay opposition)
-//!
-//! These create the most uncomfortable finger coordination.
-//!
-//! **Half Scissor Bigrams (HSB)** - Diagonal movements with reduced conflict:
+//! **Half Scissor** - Diagonal movements with reduced conflict:
 //! - Lateral + Vertical: One finger moves laterally (In/Out), other vertically (North/South)
-//! - Examples: In→North, Out→South, North→In, South→Out
 //!
-//! **Lateral Stretch Bigrams (LSB)** - Lateral displacement:
+//! **Lateral Stretch** - Lateral displacement:
 //! - Lateral + Center: One finger moves laterally (In/Out), other presses Center
-//! - Creates lateral displacement similar to center column reach
-//! - Examples: In→Center, Out→Center, Center→In, Center→Out
 //!
-//! **Non-scissor patterns**:
-//! - Same lateral direction (In→In, Out→Out): Pure rolling motion
-//! - Other combinations: Insufficient coordination conflict
+//! **Not penalized**: Same lateral direction (In→In, Out→Out) are pure rolls.
 //!
-//! ### Cost-Based Scaling
+//! ## Configuration
 //!
-//! The penalty is proportional to the absolute cost difference between keys:
-//! ```
-//! penalty = multiplier × |cost_from - cost_to|
-//! ```
-//!
-//! Key costs are defined in the keyboard configuration and represent the relative
-//! difficulty of reaching each position. All geometric scissors are penalized
-//! proportionally to their cost difference, allowing natural scaling from minor
-//! to severe imbalances.
-//!
-//! ### Design Rationale
-//!
-//! This approach was designed to:
-//! 1. **Capture real discomfort**: Base penalties on actual physical difficulty
-//! 2. **Avoid false positives**: Don't penalize comfortable rolling motions
-//! 3. **Scale appropriately**: Worse imbalances get proportionally higher penalties
-//! 4. **Distinguish motion types**: Different scissor patterns have different comfort levels
-//! 5. **Respect biomechanics**: Squeeze motions are harder than splay motions
-//!
-//! The result is a metric that identifies genuinely uncomfortable finger coordination
-//! patterns while avoiding over-penalization of natural typing motions.
+//! All factors and frequency thresholds are configurable in the evaluation metrics:
+//! - `full_scissor_vertical_factor`: Multiplier for vertical scissors
+//! - `full_scissor_squeeze_factor`: Multiplier for squeeze motion
+//! - `full_scissor_splay_factor`: Multiplier for splay motion
+//! - `half_scissor_factor`: Multiplier for diagonal movements
+//! - `lateral_stretch_factor`: Multiplier for lateral+center
+//! - `critical_bigram_fraction`: Frequency threshold for high-penalty bigrams (optional)
+//! - `critical_bigram_factor`: Multiplier for high-frequency bigrams (optional)
 
 use super::BigramMetric;
 
