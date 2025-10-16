@@ -82,7 +82,14 @@ tasks:
       OUT_LAYOUT_FILE: '{{ .OUT_LAYOUT_FILE | default (print .CORPUS "_optimized_layouts.txt") }}'
     preconditions:
       - sh: test -f "{{.IN_LAYOUT_FILE}}"
-        msg: "Error: layouts file '{{.IN_LAYOUT_FILE}}' not found."
+        msg: |
+          Error: Input layouts file '{{.IN_LAYOUT_FILE}}' not found.
+
+          This file should contain one layout per line (starting layouts for optimization).
+
+          To fix this:
+            - Create '{{.IN_LAYOUT_FILE}}' with your starting layouts, OR
+            - Specify a different file: task optimize CORPUS={{.CORPUS}} IN_LAYOUT_FILE=your_file.txt
     cmds:
       - task: _optimize_sa
         vars:

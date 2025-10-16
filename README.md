@@ -4,7 +4,7 @@ A keyboard layout optimizer forked from [catvw/keyboard_layout_optimizer](https:
 
 ## Features
 
-- **Layout Evaluation**: Analyze typing efficiency using various metrics (finger balance, key costs, bigrams, trigrams, scissoring, cluster rolls,etc.)
+- **Layout Evaluation**: Analyze typing efficiency using various metrics (finger balance, key costs, bigrams, trigrams, cost-based scissors, cluster rolls, etc.)
 - **Layout Optimization**: Generate optimal layouts using genetic algorithms or simulated annealing
 - **Multi-language Support**: Enhanced n-gram datasets for English, French, and bilingual optimization
 - **Svalboard Support**: Built-in support for the [Svalboard](https://svalboard.com/products/lightly) keyboard with custom metrics
@@ -34,15 +34,55 @@ cargo build --release
 
 ## Quick Start
 
-The project uses [Taskfile](https://taskfile.dev/) for common operations. The main workflows are `optimize` and `evaluate`:
+**Important**: All commands should be run from the project root directory, not from subdirectories like `ngrams/`.
+
+The project uses [Taskfile](https://taskfile.dev/) to streamline common operations. Taskfile wraps the base CLI commands (see [Advanced Usage](#advanced-usage)) and makes it easier to:
+- Manage input/output files with sensible defaults
+- Evaluate multiple layouts concurrently
+- Generate comprehensive reports (CSV, markdown, SVG) automatically
+
+The main workflows are `optimize` and `evaluate`.
+
+### First Time Setup
+
+Before optimizing, you need a file containing starting layouts (one per line). You can:
+
+1. **Start with a known layout** like QWERTY:
+
+   ```bash
+   # Create a starting layouts file
+   echo "□qwfpb□□jluy□□arstg□□mneio□□xcdvz□□kh" > eng_granite_layouts.txt
+   ```
+
+2. **Use an existing optimized layout** from the community as a starting point
+
+3. **Start from scratch** with random layouts (the optimizer will generate them)
+
+### Complete Workflow Example
+
+```bash
+# 1. Create a starting layouts file (replace with your preferred layout)
+echo "□qwfpb□□jluy□□arstg□□mneio□□xcdvz□□kh" > eng_granite_layouts.txt
+
+# 2. Run optimization (this will create eng_granite_optimized_layouts.txt)
+task optimize CORPUS=eng_granite
+
+# 3. Results are automatically generated in evaluation/eng_granite/
+ls evaluation/eng_granite/
+```
 
 ### Optimize Layouts
 
-Generate optimized layouts for a specific language corpus (must be in [ngrams/](ngrams/)):
+Generate optimized layouts for a specific language corpus (must be in [ngrams/](ngrams/)).
+
+**Prerequisites**: You need an input layouts file containing starting layouts (one per line). By default, the task looks for `<CORPUS>_layouts.txt` (e.g., `eng_granite_layouts.txt`).
 
 ```bash
-# Optimize for English Granite corpus
+# Optimize for English Granite corpus (requires eng_granite_layouts.txt)
 task optimize CORPUS=eng_granite
+
+# Use a custom input file
+task optimize CORPUS=eng_granite IN_LAYOUT_FILE=my_starts.txt
 
 # Optimize with custom parameters (fix certain keys)
 task optimize CORPUS=eng_fra -- --fix 'reoyaui'
@@ -50,6 +90,8 @@ task optimize CORPUS=eng_fra -- --fix 'reoyaui'
 # See optimization options
 task optimize CORPUS=eng_fra -- --help
 ```
+
+The optimized layouts will be saved to `<CORPUS>_optimized_layouts.txt` and automatically evaluated.
 
 ### Evaluate Existing Layouts
 
@@ -99,29 +141,45 @@ All French ngrams were generated using [`scripts/french/Taskfile.yml`](scripts/f
 
 The main metrics configuration is in [`config/evaluation/sval.yml`](config/evaluation/sval.yml). Key metrics include:
 
-- **[finger_balance](config/evaluation/sval.yml#L3)**: Ensures optimal finger load distribution
-- **[hand_disbalance](config/evaluation/sval.yml#L24)**: Maintains left-right hand balance
-- **[key_costs](config/evaluation/sval.yml#L34)**: Penalizes hard-to-reach keys
-- **[cluster_rolls](config/evaluation/sval.yml#L58)**: Evaluates same-finger bigrams comfort
-- **[scissoring](config/evaluation/sval.yml#L121)**: Penalizes uncomfortable adjacent finger movements
-- **[movement_pattern](config/evaluation/sval.yml#L142)**: Costs finger transitions within the same hand
+- **[finger_balance](config/evaluation/sval.yml#L2)**: Ensures optimal finger load distribution based on intended loads per finger
+- **[hand_disbalance](config/evaluation/sval.yml#L28)**: Maintains left-right hand balance
+- **[key_costs](config/evaluation/sval.yml#L38)**: Penalizes hard-to-reach keys based on position difficulty
+- **[position_penalties](config/evaluation/sval.yml#L59)**: Applies penalties when specific characters appear at specific positions. Configured here to restrict high-frequency double letters to comfortable positions (center/south)
+- **[cluster_rolls](config/evaluation/sval.yml#L535)**: Evaluates same-finger bigram comfort with directional costs
+- **[scissors](config/evaluation/sval.yml#L594)**: Cost-based scissoring metric that penalizes adjacent finger movements with effort imbalances
+- **[manual_bigram_penalty](config/evaluation/sval.yml#L615)**: Penalizes specific uncomfortable bigrams (e.g., pinky same-key repeats)
+- **[trigram_stats](config/evaluation/sval.yml#L643)**: Tracks roll and redirect statistics (informational, weight: 0)
 
 ### Key Costs
 
 Physical key costs are defined in [`config/keyboard/sval.yml`](config/keyboard/sval.yml) under the [`key_costs`](config/keyboard/sval.yml#L162) section. The Svalboard configuration reflects the dual homerow design where:
 
-- **Center & South keys**: Most comfortable (costs: 2-3)
-- **Inward keys**: Moderately comfortable (costs: 3-5)
-- **Outward keys**: Less comfortable (costs: 4-8)
-- **North keys**: Least comfortable (costs: 6-8)
+- **Center & South keys**: Most comfortable
+- **Inward keys**: Moderately comfortable
+- **Outward keys**: Less comfortable
+- **North keys**: Least comfortable
 
 ### Svalboard-Specific Metrics
 
 The optimizer includes custom metrics optimized for the Svalboard's unique geometry:
 
-- **[cluster_rolls](config/evaluation/sval.yml#L58)**: Center→South rolls are rewarded (cost: 0.0), other directions penalized appropriately
-- **[scissoring](config/evaluation/sval.yml#L121)**: Lateral squeezing motions heavily penalized (cost: 6.0)
-- **[movement_pattern](config/evaluation/sval.yml#L142)**: Optimized for the dual-homerow layout with reduced penalties for center-to-center transitions
+- **[cluster_rolls](config/evaluation/sval.yml#L535)**: Directional same-finger bigram costs:
+  - Center→South rolls are rewarded
+  - Other directions penalized based on comfort
+  - Finger multipliers increase penalties for weaker fingers
+  - High-frequency rolls get additional penalty multiplier
+
+- **[scissors](config/evaluation/sval.yml#L594)**: Key-cost-based scissoring that identifies when adjacent fingers have mismatched effort (e.g., weak finger doing hard work while strong finger gets easy work). Uses the key costs defined in the keyboard configuration to calculate effort imbalances. Penalties scale proportionally with the absolute cost difference between keys and distinguish between movement types:
+  - **Full Scissor Vertical** (North↔South opposition)
+  - **Full Scissor Squeeze/Splay** (In↔Out lateral opposition, squeeze being more uncomfortable)
+  - **Half Scissor** (diagonal lateral+vertical movements)
+  - **Lateral Stretch** (lateral+center displacement)
+  - High-frequency scissors get additional penalty multiplier
+
+- **[position_penalties](config/evaluation/sval.yml#L59)**: Penalizes specific characters at specific matrix positions. Currently configured to:
+  - Restrict common double letters (e, l, s, o, t, r, h, n, f, p) to comfortable positions (center/south preferred)
+  - Keep punctuation marks (,.'- ) off center keys to preserve homerow flow
+  - This metric is highly customizable for enforcing character placement constraints
 
 ## Project Structure
 
@@ -143,7 +201,7 @@ The chosen metric weights aim to produce balanced layouts that:
 
 1. **Respect hand/finger anatomy**: Strong fingers handle more load, weak fingers less
 2. **Leverage Svalboard geometry**: Optimize for dual homerows and comfortable key positions
-3. **Minimize discomfort**: Heavily penalize scissoring and uncomfortable same-finger sequences
+3. **Minimize discomfort**: Cost-based penalties for scissors (effort imbalances between adjacent fingers) and uncomfortable same-finger sequences
 4. **Reward natural motions**: Center→South rolls and smooth finger transitions
 5. **Balance typing flow**: Maintain good hand alternation while allowing efficient same-hand patterns
 
@@ -151,7 +209,7 @@ The chosen metric weights aim to produce balanced layouts that:
 
 ### Direct Binary Usage
 
-For more control, use the compiled binaries directly:
+For more control or integration into custom workflows, you can use the compiled binaries directly instead of Taskfile:
 
 ```bash
 # Evaluate a specific layout
@@ -186,6 +244,36 @@ Contributions are welcome! Areas of particular interest:
 ## License
 
 This project inherits the GPL-3.0 license from the original keyboard_layout_optimizer.
+
+## Troubleshooting
+
+Make sure you're in the project root directory (where `Taskfile.yml` is located), not in subdirectories like `ngrams/`.
+
+### "Error: Input layouts file '...\_layouts.txt' not found"
+
+This means you need to create a starting layouts file before running optimization.
+
+The default input filename follows the pattern: `<CORPUS>_layouts.txt`
+
+- For `CORPUS=eng_granite`, it expects `eng_granite_layouts.txt`
+- For `CORPUS=eng_fra`, it expects `eng_fra_layouts.txt`
+
+**Solution**:
+
+```bash
+# Create a layouts file with a starting layout (filename must match corpus name)
+echo "□jp'c□□y.i,□o-u□□e□akqlmh□zn□tvbs□f□wdxgr" > eng_granite_layouts.txt
+
+# Or specify a different file
+task optimize CORPUS=eng_granite IN_LAYOUT_FILE=my_layouts.txt
+```
+
+### Optimization produces poor results
+
+- **Check your corpus**: Make sure the ngram files match your target language
+- **Adjust starting layouts**: Try different starting points or multiple starting layouts
+- **Review metrics**: The weights in `config/evaluation/sval.yml` can be adjusted for your preferences
+- **Fix important keys**: Use `-- --fix 'keys'` to keep certain letters in place
 
 ## Acknowledgments
 

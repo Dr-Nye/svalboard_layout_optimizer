@@ -45,11 +45,11 @@ METRICS_DESCRIPTION = """## Metrics Description
 
 **key_costs**: Penalizes using keys that are harder to reach based on position (based on direction and finger)
 
+**position_penalties**: Applies penalties when specific characters appear at specific matrix positions. Used to enforce character placement constraints, such as restricting high-frequency double letters to comfortable positions or keeping punctuation marks off homerow keys
+
 **cluster_rolls**: Evaluates the comfort of same finger bigrams. Center to south bigrams are good here.
 
-**scissoring**: Penalizes uncomfortable adjacent finger movements
-
-**scissors**: Combines key costs with scissoring penalties for adjacent finger movements
+**scissors**: Cost-based scissoring metric that penalizes adjacent finger movements where there's an effort imbalance (e.g., weak finger doing hard work while strong finger gets easy work). Penalties scale proportionally to the key cost difference and distinguish between movement types: Full Scissor Vertical (North↔South), Full Scissor Squeeze/Splay (In↔Out lateral, squeeze being worse), Half Scissor (diagonal lateral+vertical), and Lateral Stretch (lateral+center)
 
 **symmetric_handswitches**: Rewards using symmetrical key positions when switching between hands, but only for center, south, and index/middle north keys
 
