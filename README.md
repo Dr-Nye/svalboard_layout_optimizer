@@ -37,6 +37,7 @@ cargo build --release
 **Important**: All commands should be run from the project root directory, not from subdirectories like `ngrams/`.
 
 The project uses [Taskfile](https://taskfile.dev/) to streamline common operations. Taskfile wraps the base CLI commands (see [Advanced Usage](#advanced-usage)) and makes it easier to:
+
 - Manage input/output files with sensible defaults
 - Evaluate multiple layouts concurrently
 - Generate comprehensive reports (CSV, markdown, SVG) automatically
@@ -51,7 +52,7 @@ Before optimizing, you need a file containing starting layouts (one per line). Y
 
    ```bash
    # Create a starting layouts file
-   echo "□qwfpb□□jluy□□arstg□□mneio□□xcdvz□□kh" > eng_granite_layouts.txt
+   echo "q□a□zw□sbxe□dtcr□fgvuhj'miyk□,onl□.p□-□□" > eng_granite_layouts.txt
    ```
 
 2. **Use an existing optimized layout** from the community as a starting point
@@ -62,7 +63,7 @@ Before optimizing, you need a file containing starting layouts (one per line). Y
 
 ```bash
 # 1. Create a starting layouts file (replace with your preferred layout)
-echo "□qwfpb□□jluy□□arstg□□mneio□□xcdvz□□kh" > eng_granite_layouts.txt
+echo "q□a□zw□sbxe□dtcr□fgvuhj'miyk□,onl□.p□-□□" > eng_granite_layouts.txt
 
 # 2. Run optimization (this will create eng_granite_optimized_layouts.txt)
 task optimize CORPUS=eng_granite
@@ -164,12 +165,14 @@ Physical key costs are defined in [`config/keyboard/sval.yml`](config/keyboard/s
 The optimizer includes custom metrics optimized for the Svalboard's unique geometry:
 
 - **[cluster_rolls](config/evaluation/sval.yml#L535)**: Directional same-finger bigram costs:
+
   - Center→South rolls are rewarded
   - Other directions penalized based on comfort
   - Finger multipliers increase penalties for weaker fingers
   - High-frequency rolls get additional penalty multiplier
 
 - **[scissors](config/evaluation/sval.yml#L594)**: Key-cost-based scissoring that identifies when adjacent fingers have mismatched effort (e.g., weak finger doing hard work while strong finger gets easy work). Uses the key costs defined in the keyboard configuration to calculate effort imbalances. Penalties scale proportionally with the absolute cost difference between keys and distinguish between movement types:
+
   - **Full Scissor Vertical** (North↔South opposition)
   - **Full Scissor Squeeze/Splay** (In↔Out lateral opposition, squeeze being more uncomfortable)
   - **Half Scissor** (diagonal lateral+vertical movements)
