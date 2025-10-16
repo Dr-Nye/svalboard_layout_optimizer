@@ -57,8 +57,6 @@ Before optimizing, you need a file containing starting layouts (one per line). Y
 
 2. **Use an existing optimized layout** from the community as a starting point
 
-3. **Start from scratch** with random layouts (the optimizer will generate them)
-
 ### Complete Workflow Example
 
 ```bash
