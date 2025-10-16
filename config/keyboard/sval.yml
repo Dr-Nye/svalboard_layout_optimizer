@@ -111,10 +111,10 @@ keyboard:
       North, Out, Center, In, South,
       North, Out, Center, In, South,
       North, Out, Center, In, South,
-      North, In, Center, Out, South,
+      North, Out, Center, In, South,
 
       # right hand
-      North, Out, Center, In, South,
+      North, In, Center, Out, South,
       North, In, Center, Out, South,
       North, In, Center, Out, South,
       North, In, Center, Out, South,
