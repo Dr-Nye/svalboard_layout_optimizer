@@ -182,7 +182,6 @@ impl TrigramMetric for TrigramStats {
         let mut redirects_weight = 0.0;
         let mut weak_redirects_weight = 0.0;
         let mut sfs_weight = 0.0;
-        let mut valid_trigrams_weight = 0.0;
 
         let total_trigrams_weight =
             total_weight.unwrap_or_else(|| trigrams.iter().map(|(_, w)| w).sum());
@@ -205,8 +204,6 @@ impl TrigramMetric for TrigramStats {
             {
                 continue;
             }
-
-            valid_trigrams_weight += weight;
 
             let h1 = k1.key.hand;
             let h2 = k2.key.hand;
@@ -247,67 +244,19 @@ impl TrigramMetric for TrigramStats {
             }
         }
 
-        let bigram_inward_percentage = if valid_trigrams_weight > 0.0 {
-            (bigram_inward_rolls_weight / valid_trigrams_weight) * 100.0
-        } else {
-            0.0
-        };
-
-        let bigram_outward_percentage = if valid_trigrams_weight > 0.0 {
-            (bigram_outward_rolls_weight / valid_trigrams_weight) * 100.0
-        } else {
-            0.0
-        };
-
-        let center_south_percentage = if valid_trigrams_weight > 0.0 {
-            (center_south_rolls_weight / valid_trigrams_weight) * 100.0
-        } else {
-            0.0
-        };
-
-        let roll_in_percentage = if valid_trigrams_weight > 0.0 {
-            (roll_in_weight / valid_trigrams_weight) * 100.0
-        } else {
-            0.0
-        };
-
-        let roll_out_percentage = if valid_trigrams_weight > 0.0 {
-            (roll_out_weight / valid_trigrams_weight) * 100.0
-        } else {
-            0.0
-        };
-
-        let alternation_percentage = if valid_trigrams_weight > 0.0 {
-            (alternation_weight / valid_trigrams_weight) * 100.0
-        } else {
-            0.0
-        };
-
-        let redirect_percentage = if valid_trigrams_weight > 0.0 {
-            (redirects_weight / valid_trigrams_weight) * 100.0
-        } else {
-            0.0
-        };
-
-        let weak_redirect_percentage = if valid_trigrams_weight > 0.0 {
-            (weak_redirects_weight / valid_trigrams_weight) * 100.0
-        } else {
-            0.0
-        };
-
-        let sfs_percentage = if total_trigrams_weight > 0.0 {
-            (sfs_weight / total_trigrams_weight) * 100.0
-        } else {
-            0.0
-        };
+        let bigram_inward_percentage = crate::metrics::to_percentage(bigram_inward_rolls_weight, total_trigrams_weight);
+        let bigram_outward_percentage = crate::metrics::to_percentage(bigram_outward_rolls_weight, total_trigrams_weight);
+        let center_south_percentage = crate::metrics::to_percentage(center_south_rolls_weight, total_trigrams_weight);
+        let roll_in_percentage = crate::metrics::to_percentage(roll_in_weight, total_trigrams_weight);
+        let roll_out_percentage = crate::metrics::to_percentage(roll_out_weight, total_trigrams_weight);
+        let alternation_percentage = crate::metrics::to_percentage(alternation_weight, total_trigrams_weight);
+        let redirect_percentage = crate::metrics::to_percentage(redirects_weight, total_trigrams_weight);
+        let weak_redirect_percentage = crate::metrics::to_percentage(weak_redirects_weight, total_trigrams_weight);
+        let sfs_percentage = crate::metrics::to_percentage(sfs_weight, total_trigrams_weight);
 
         let total_bigram_rolls_weight =
             bigram_inward_rolls_weight + bigram_outward_rolls_weight + center_south_rolls_weight;
-        let total_bigram_rolls_percentage = if valid_trigrams_weight > 0.0 {
-            (total_bigram_rolls_weight / valid_trigrams_weight) * 100.0
-        } else {
-            0.0
-        };
+        let total_bigram_rolls_percentage = crate::metrics::to_percentage(total_bigram_rolls_weight, total_trigrams_weight);
 
         let message = format!(
             "{}: {:.1}%, {}: {:.1}%, {}: {:.1}%, {}: {:.1}%, {}: {:.1}%, {}: {:.1}%, {}: {:.1}%, {}: {:.1}%, {}: {:.1}%, {}: {:.1}%",
