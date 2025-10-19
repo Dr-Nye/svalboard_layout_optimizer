@@ -62,6 +62,7 @@ pub struct MetricParameters {
     pub trigram_stats: Option<WeightedParams<trigram_stats::Parameters>>,
     pub no_handswitch_in_trigram: Option<WeightedParams<no_handswitch_in_trigram::Parameters>>,
     pub secondary_bigrams: Option<WeightedParams<secondary_bigrams::Parameters>>,
+    pub sfs: Option<WeightedParams<sfs::Parameters>>,
     pub trigram_finger_repeats: Option<WeightedParams<trigram_finger_repeats::Parameters>>,
     pub trigram_rolls: Option<WeightedParams<trigram_rolls::Parameters>>,
 

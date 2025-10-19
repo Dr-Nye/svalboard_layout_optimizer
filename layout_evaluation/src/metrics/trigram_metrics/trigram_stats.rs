@@ -1,5 +1,6 @@
 use super::TrigramMetric;
 
+use colored::Colorize;
 use keyboard_layout::{
     key::{Finger, Hand},
     layout::{LayerKey, Layout},
@@ -169,7 +170,7 @@ impl TrigramMetric for TrigramStats {
     fn total_cost(
         &self,
         trigrams: &[((&LayerKey, &LayerKey, &LayerKey), f64)],
-        _total_weight: Option<f64>,
+        total_weight: Option<f64>,
         _layout: &Layout,
     ) -> (f64, Option<String>) {
         let mut bigram_inward_rolls_weight = 0.0;
@@ -180,10 +181,24 @@ impl TrigramMetric for TrigramStats {
         let mut alternation_weight = 0.0;
         let mut redirects_weight = 0.0;
         let mut weak_redirects_weight = 0.0;
+        let mut sfs_weight = 0.0;
         let mut valid_trigrams_weight = 0.0;
 
+        let total_trigrams_weight =
+            total_weight.unwrap_or_else(|| trigrams.iter().map(|(_, w)| w).sum());
+
         for ((k1, k2, k3), weight) in trigrams {
-            // Skip ignored keys
+            // Check for SFS (Same Finger Skipgram) - k1 and k3 same finger
+            if !self.should_ignore_key(k1)
+                && !self.should_ignore_key(k3)
+                && k1 != k3 // Skip same-key repeats
+                && k1.key.hand == k3.key.hand
+                && k1.key.finger == k3.key.finger
+            {
+                sfs_weight += weight;
+            }
+
+            // Skip ignored keys for other metrics
             if self.should_ignore_key(k1)
                 || self.should_ignore_key(k2)
                 || self.should_ignore_key(k3)
@@ -280,7 +295,14 @@ impl TrigramMetric for TrigramStats {
             0.0
         };
 
-        let total_bigram_rolls_weight = bigram_inward_rolls_weight + bigram_outward_rolls_weight + center_south_rolls_weight;
+        let sfs_percentage = if total_trigrams_weight > 0.0 {
+            (sfs_weight / total_trigrams_weight) * 100.0
+        } else {
+            0.0
+        };
+
+        let total_bigram_rolls_weight =
+            bigram_inward_rolls_weight + bigram_outward_rolls_weight + center_south_rolls_weight;
         let total_bigram_rolls_percentage = if valid_trigrams_weight > 0.0 {
             (total_bigram_rolls_weight / valid_trigrams_weight) * 100.0
         } else {
@@ -288,11 +310,17 @@ impl TrigramMetric for TrigramStats {
         };
 
         let message = format!(
-            "Total bigram roll: {:.1}%, Bigram roll in: {:.1}%, Bigram roll out: {:.1}%, Center->South: {:.1}%, Roll in: {:.1}%, Roll out: {:.1}%, Alt: {:.1}%, Redirect: {:.1}%, Weak redirect: {:.1}%",
-            total_bigram_rolls_percentage,
-            bigram_inward_percentage, bigram_outward_percentage, center_south_percentage,
-            roll_in_percentage, roll_out_percentage, alternation_percentage,
-            redirect_percentage, weak_redirect_percentage
+            "{}: {:.1}%, {}: {:.1}%, {}: {:.1}%, {}: {:.1}%, {}: {:.1}%, {}: {:.1}%, {}: {:.1}%, {}: {:.1}%, {}: {:.1}%, {}: {:.1}%",
+            "Total bigram roll".underline(), total_bigram_rolls_percentage,
+            "Bigram roll in".underline(), bigram_inward_percentage,
+            "Bigram roll out".underline(), bigram_outward_percentage,
+            "Center->South".underline(), center_south_percentage,
+            "Roll in".underline(), roll_in_percentage,
+            "Roll out".underline(), roll_out_percentage,
+            "Alt".underline(), alternation_percentage,
+            "Redirect".underline(), redirect_percentage,
+            "Weak redirect".underline(), weak_redirect_percentage,
+            "SFS".underline(), sfs_percentage
         );
 
         // Return 0 cost since this is informational only

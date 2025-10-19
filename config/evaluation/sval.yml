@@ -651,6 +651,22 @@ metrics:
       ignore_modifiers: true
       ignore_thumbs: true
 
+  sfs:
+    enabled: true
+    weight: 5.0
+    normalization:
+      type: weight_found
+      value: 1.0
+    params:
+      ignore_thumb: true
+      ignore_modifiers: true
+      finger_factors:
+        Pinky: 2.0
+        Ring: 1.5
+        Middle: 1.0
+        Index: 0.75
+        Thumb: 1.0
+
 ngrams:
   # Increase the weight of bigrams that have both an absolute weight and relative weight exceed
   # specified thresholds.
