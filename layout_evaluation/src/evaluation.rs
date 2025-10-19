@@ -49,7 +49,7 @@ pub struct MetricParameters {
     pub key_costs: Option<WeightedParams<key_costs::Parameters>>,
     pub modifier_usage: Option<WeightedParams<modifier_usage::Parameters>>,
 
-    pub cluster_rolls: Option<WeightedParams<cluster_rolls::Parameters>>,
+    pub sfb: Option<WeightedParams<sfb::Parameters>>,
     pub scissoring: Option<WeightedParams<scissoring::Parameters>>,
     pub scissors: Option<WeightedParams<scissors::Parameters>>,
     pub symmetric_handswitches: Option<WeightedParams<symmetric_handswitches::Parameters>>,

@@ -532,7 +532,7 @@ metrics:
   # Bigram metrics
   # =============================================================================
 
-  cluster_rolls:
+  sfb:
     enabled: true
     weight: 100.0
     normalization:
@@ -542,6 +542,7 @@ metrics:
     params:
       default_cost: 0
       ignore_thumb: true
+      exclude_modifiers: false
 
       # Format:
       #   from:
@@ -579,7 +580,7 @@ metrics:
         Up:
           Pad: 3.0
 
-      finger_multipliers:
+      finger_factors:
         Pinky: 2.0
         Ring: 1.5
         Middle: 1.0

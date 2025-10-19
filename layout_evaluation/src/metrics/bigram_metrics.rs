@@ -5,9 +5,6 @@ use ordered_float::OrderedFloat;
 use priority_queue::DoublePriorityQueue;
 use std::{env, fmt};
 
-pub mod cluster_rolls;
-pub mod scissoring;
-pub mod scissors;
 pub mod finger_repeats;
 pub mod kla_distance;
 pub mod kla_finger_usage;
@@ -18,6 +15,9 @@ pub mod movement_pattern;
 pub mod no_handswitch_after_unbalancing_key;
 pub mod oxey_lsbs;
 pub mod oxey_sfbs;
+pub mod scissoring;
+pub mod scissors;
+pub mod sfb;
 pub mod symmetric_handswitches;
 
 /// BigramMetric is a trait for metrics that iterates over weighted bigrams.
