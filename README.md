@@ -4,7 +4,7 @@ A keyboard layout optimizer forked from [catvw/keyboard_layout_optimizer](https:
 
 ## Features
 
-- **Layout Evaluation**: Analyze typing efficiency using various metrics (finger balance, key costs, bigrams, trigrams, cost-based scissors, cluster rolls, etc.)
+- **Layout Evaluation**: Analyze typing efficiency using various metrics (finger balance, key costs, bigrams, trigrams, cost-based scissors, SFB, etc.)
 - **Layout Optimization**: Generate optimal layouts using genetic algorithms or simulated annealing
 - **Multi-language Support**: Enhanced n-gram datasets for English, French, and bilingual optimization
 - **Svalboard Support**: Built-in support for the [Svalboard](https://svalboard.com/products/lightly) keyboard with custom metrics
@@ -140,18 +140,19 @@ All French ngrams were generated using [`scripts/french/Taskfile.yml`](scripts/f
 
 The main metrics configuration is in [`config/evaluation/sval.yml`](config/evaluation/sval.yml). Key metrics include:
 
-- **[finger_balance](config/evaluation/sval.yml#L2)**: Ensures optimal finger load distribution based on intended loads per finger
-- **[hand_disbalance](config/evaluation/sval.yml#L28)**: Maintains left-right hand balance
-- **[key_costs](config/evaluation/sval.yml#L38)**: Penalizes hard-to-reach keys based on position difficulty
-- **[position_penalties](config/evaluation/sval.yml#L59)**: Applies penalties when specific characters appear at specific positions. Configured here to restrict high-frequency double letters to comfortable positions (center/south)
-- **[cluster_rolls](config/evaluation/sval.yml#L535)**: Evaluates same-finger bigram comfort with directional costs
-- **[scissors](config/evaluation/sval.yml#L594)**: Cost-based scissoring metric that penalizes adjacent finger movements with effort imbalances
-- **[manual_bigram_penalty](config/evaluation/sval.yml#L615)**: Penalizes specific uncomfortable bigrams (e.g., pinky same-key repeats)
-- **[trigram_stats](config/evaluation/sval.yml#L643)**: Tracks roll and redirect statistics (informational, weight: 0)
+- **finger_balance**: Ensures optimal finger load distribution based on intended loads per finger
+- **hand_disbalance**: Maintains left-right hand balance
+- **key_costs**: Penalizes hard-to-reach keys based on position difficulty
+- **position_penalties**: Applies penalties when specific characters appear at specific positions. Configured here to restrict high-frequency double letters to comfortable positions (center/south)
+- **sfb**: Same Finger Bigram metric that evaluates same-finger bigram comfort with directional costs
+- **scissors**: Cost-based scissoring metric that penalizes adjacent finger movements with effort imbalances
+- **manual_bigram_penalty**: Penalizes specific uncomfortable bigrams (e.g., pinky same-key repeats)
+- **bigram_stats**: Provides statistics on bigram categories like SFB, scissor types, and other movement patterns (informational, weight: 0)
+- **trigram_stats**: Tracks roll and redirect statistics (informational, weight: 0)
 
 ### Key Costs
 
-Physical key costs are defined in [`config/keyboard/sval.yml`](config/keyboard/sval.yml) under the [`key_costs`](config/keyboard/sval.yml#L162) section. The Svalboard configuration reflects the dual homerow design where:
+Physical key costs are defined in [`config/keyboard/sval.yml`](config/keyboard/sval.yml) under the `key_costs` section. The Svalboard configuration reflects the dual homerow design where:
 
 - **Center & South keys**: Most comfortable
 - **Inward keys**: Moderately comfortable
@@ -162,14 +163,14 @@ Physical key costs are defined in [`config/keyboard/sval.yml`](config/keyboard/s
 
 The optimizer includes custom metrics optimized for the Svalboard's unique geometry:
 
-- **[cluster_rolls](config/evaluation/sval.yml#L535)**: Directional same-finger bigram costs:
+- **sfb**: Same Finger Bigram metric with directional costs:
 
-  - Center→South rolls are rewarded
+  - Center→South movements are rewarded
   - Other directions penalized based on comfort
   - Finger multipliers increase penalties for weaker fingers
-  - High-frequency rolls get additional penalty multiplier
+  - High-frequency SFBs get additional penalty multiplier
 
-- **[scissors](config/evaluation/sval.yml#L594)**: Key-cost-based scissoring that identifies when adjacent fingers have mismatched effort (e.g., weak finger doing hard work while strong finger gets easy work). Uses the key costs defined in the keyboard configuration to calculate effort imbalances. Penalties scale proportionally with the absolute cost difference between keys and distinguish between movement types:
+- **scissors**: Key-cost-based scissoring that identifies when adjacent fingers have mismatched effort (e.g., weak finger doing hard work while strong finger gets easy work). Uses the key costs defined in the keyboard configuration to calculate effort imbalances. Penalties scale proportionally with the absolute cost difference between keys and distinguish between movement types:
 
   - **Full Scissor Vertical** (North↔South opposition)
   - **Full Scissor Squeeze/Splay** (In↔Out lateral opposition, squeeze being more uncomfortable)
@@ -177,7 +178,7 @@ The optimizer includes custom metrics optimized for the Svalboard's unique geome
   - **Lateral Stretch** (lateral+center displacement)
   - High-frequency scissors get additional penalty multiplier
 
-- **[position_penalties](config/evaluation/sval.yml#L59)**: Penalizes specific characters at specific matrix positions. Currently configured to:
+- **position_penalties**: Penalizes specific characters at specific matrix positions. Currently configured to:
   - Restrict common double letters (e, l, s, o, t, r, h, n, f, p) to comfortable positions (center/south preferred)
   - Keep punctuation marks (,.'- ) off center keys to preserve homerow flow
   - This metric is highly customizable for enforcing character placement constraints
@@ -202,8 +203,8 @@ The chosen metric weights aim to produce balanced layouts that:
 
 1. **Respect hand/finger anatomy**: Strong fingers handle more load, weak fingers less
 2. **Leverage Svalboard geometry**: Optimize for dual homerows and comfortable key positions
-3. **Minimize discomfort**: Cost-based penalties for scissors (effort imbalances between adjacent fingers) and uncomfortable same-finger sequences
-4. **Reward natural motions**: Center→South rolls and smooth finger transitions
+3. **Minimize discomfort**: Cost-based penalties for scissors (effort imbalances between adjacent fingers) and uncomfortable same-finger bigrams
+4. **Reward natural motions**: Center→South movements and smooth finger transitions
 5. **Balance typing flow**: Maintain good hand alternation while allowing efficient same-hand patterns
 
 ## Advanced Usage
