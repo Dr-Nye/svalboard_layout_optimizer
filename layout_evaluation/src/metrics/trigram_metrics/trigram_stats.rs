@@ -7,6 +7,20 @@ use keyboard_layout::{
 };
 
 use serde::Deserialize;
+use std::collections::HashMap;
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+enum TrigramCategory {
+    BigramRollIn,
+    BigramRollOut,
+    CenterSouth,
+    RollIn,
+    RollOut,
+    Alternation,
+    Redirect,
+    WeakRedirect,
+    Other,
+}
 
 #[derive(Clone, Deserialize, Debug)]
 pub struct Parameters {
@@ -31,6 +45,49 @@ impl TrigramStats {
     fn should_ignore_key(&self, key: &LayerKey) -> bool {
         (self.ignore_thumbs && key.key.finger == Finger::Thumb)
             || (self.ignore_modifiers && key.is_modifier.is_some())
+    }
+
+    fn classify_trigram(&self, k1: &LayerKey, k2: &LayerKey, k3: &LayerKey) -> TrigramCategory {
+        let h1 = k1.key.hand;
+        let h2 = k2.key.hand;
+        let h3 = k3.key.hand;
+
+        if h1 == h2 && h2 == h3 {
+            // Same hand (all 3 keys) - check roll in/out or redirect
+            let (is_roll_in, is_roll_out) = classify_same_hand_roll(k1, k2, k3);
+
+            if is_roll_in {
+                return TrigramCategory::RollIn;
+            } else if is_roll_out {
+                return TrigramCategory::RollOut;
+            } else {
+                // Not a roll, check for redirect
+                let (is_redirect, is_weak) = classify_redirect(k1, k2, k3);
+                if is_redirect {
+                    return if is_weak {
+                        TrigramCategory::WeakRedirect
+                    } else {
+                        TrigramCategory::Redirect
+                    };
+                }
+            }
+        } else if h1 == h3 && h1 != h2 {
+            // Alternation (LRL or RLR)
+            return TrigramCategory::Alternation;
+        } else {
+            // Bigram pattern (2,1 or 1,2) - check bigram rolls
+            let (is_inward, is_outward, is_center_south) = self.classify_roll(k1, k2, k3);
+
+            if is_inward {
+                return TrigramCategory::BigramRollIn;
+            } else if is_outward {
+                return TrigramCategory::BigramRollOut;
+            } else if is_center_south {
+                return TrigramCategory::CenterSouth;
+            }
+        }
+
+        TrigramCategory::Other
     }
 
     /// Classify a trigram roll into its category
@@ -173,15 +230,10 @@ impl TrigramMetric for TrigramStats {
         total_weight: Option<f64>,
         _layout: &Layout,
     ) -> (f64, Option<String>) {
-        let mut bigram_inward_rolls_weight = 0.0;
-        let mut bigram_outward_rolls_weight = 0.0;
-        let mut center_south_rolls_weight = 0.0;
-        let mut roll_in_weight = 0.0;
-        let mut roll_out_weight = 0.0;
-        let mut alternation_weight = 0.0;
-        let mut redirects_weight = 0.0;
+        let mut category_weights: HashMap<TrigramCategory, f64> = HashMap::new();
         let mut weak_redirects_weight = 0.0;
         let mut sfs_weight = 0.0;
+        let mut valid_trigrams_weight = 0.0;
 
         let total_trigrams_weight =
             total_weight.unwrap_or_else(|| trigrams.iter().map(|(_, w)| w).sum());
@@ -205,61 +257,42 @@ impl TrigramMetric for TrigramStats {
                 continue;
             }
 
-            let h1 = k1.key.hand;
-            let h2 = k2.key.hand;
-            let h3 = k3.key.hand;
+            valid_trigrams_weight += weight;
 
-            if h1 == h2 && h2 == h3 {
-                // Same hand (all 3 keys) - check roll in/out or redirect
-                let (is_roll_in, is_roll_out) = classify_same_hand_roll(k1, k2, k3);
+            let category = self.classify_trigram(k1, k2, k3);
+            *category_weights.entry(category).or_insert(0.0) += weight;
 
-                if is_roll_in {
-                    roll_in_weight += weight;
-                } else if is_roll_out {
-                    roll_out_weight += weight;
-                } else {
-                    // Not a roll, check for redirect
-                    let (is_redirect, is_weak) = classify_redirect(k1, k2, k3);
-                    if is_redirect {
-                        redirects_weight += weight;
-                        if is_weak {
-                            weak_redirects_weight += weight;
-                        }
-                    }
-                }
-            } else if h1 == h3 && h1 != h2 {
-                // Alternation (LRL or RLR)
-                alternation_weight += weight;
-            } else {
-                // Bigram pattern (2,1 or 1,2) - check bigram rolls
-                let (is_inward, is_outward, is_center_south) = self.classify_roll(k1, k2, k3);
-
-                if is_inward {
-                    bigram_inward_rolls_weight += weight;
-                } else if is_outward {
-                    bigram_outward_rolls_weight += weight;
-                } else if is_center_south {
-                    center_south_rolls_weight += weight;
-                }
+            // Track weak redirects separately for the message
+            if category == TrigramCategory::WeakRedirect {
+                weak_redirects_weight += weight;
             }
         }
 
-        let bigram_inward_percentage = crate::metrics::to_percentage(bigram_inward_rolls_weight, total_trigrams_weight);
-        let bigram_outward_percentage = crate::metrics::to_percentage(bigram_outward_rolls_weight, total_trigrams_weight);
-        let center_south_percentage = crate::metrics::to_percentage(center_south_rolls_weight, total_trigrams_weight);
-        let roll_in_percentage = crate::metrics::to_percentage(roll_in_weight, total_trigrams_weight);
-        let roll_out_percentage = crate::metrics::to_percentage(roll_out_weight, total_trigrams_weight);
-        let alternation_percentage = crate::metrics::to_percentage(alternation_weight, total_trigrams_weight);
-        let redirect_percentage = crate::metrics::to_percentage(redirects_weight, total_trigrams_weight);
-        let weak_redirect_percentage = crate::metrics::to_percentage(weak_redirects_weight, total_trigrams_weight);
+        // Helper to get weight for a category
+        let get_weight = |cat: TrigramCategory| *category_weights.get(&cat).unwrap_or(&0.0);
+
+        // Calculate percentages
+        let to_pct = |weight| crate::metrics::to_percentage(weight, valid_trigrams_weight);
+
+        let bigram_inward_percentage = to_pct(get_weight(TrigramCategory::BigramRollIn));
+        let bigram_outward_percentage = to_pct(get_weight(TrigramCategory::BigramRollOut));
+        let center_south_percentage = to_pct(get_weight(TrigramCategory::CenterSouth));
+        let roll_in_percentage = to_pct(get_weight(TrigramCategory::RollIn));
+        let roll_out_percentage = to_pct(get_weight(TrigramCategory::RollOut));
+        let alternation_percentage = to_pct(get_weight(TrigramCategory::Alternation));
+        let redirect_percentage =
+            to_pct(get_weight(TrigramCategory::Redirect) + weak_redirects_weight);
+        let weak_redirect_percentage = to_pct(weak_redirects_weight);
+        let other_percentage = to_pct(get_weight(TrigramCategory::Other));
         let sfs_percentage = crate::metrics::to_percentage(sfs_weight, total_trigrams_weight);
 
-        let total_bigram_rolls_weight =
-            bigram_inward_rolls_weight + bigram_outward_rolls_weight + center_south_rolls_weight;
-        let total_bigram_rolls_percentage = crate::metrics::to_percentage(total_bigram_rolls_weight, total_trigrams_weight);
+        let total_bigram_rolls_weight = get_weight(TrigramCategory::BigramRollIn)
+            + get_weight(TrigramCategory::BigramRollOut)
+            + get_weight(TrigramCategory::CenterSouth);
+        let total_bigram_rolls_percentage = to_pct(total_bigram_rolls_weight);
 
         let message = format!(
-            "{}: {:.1}%, {}: {:.1}%, {}: {:.1}%, {}: {:.1}%, {}: {:.1}%, {}: {:.1}%, {}: {:.1}%, {}: {:.1}%, {}: {:.1}%, {}: {:.1}%",
+            "{}: {:.1}%, {}: {:.1}%, {}: {:.1}%, {}: {:.1}%, {}: {:.1}%, {}: {:.1}%, {}: {:.1}%, {}: {:.1}%, {}: {:.1}%, {}: {:.1}%, {}: {:.1}%",
             "Total bigram roll".underline(), total_bigram_rolls_percentage,
             "Bigram roll in".underline(), bigram_inward_percentage,
             "Bigram roll out".underline(), bigram_outward_percentage,
@@ -269,6 +302,7 @@ impl TrigramMetric for TrigramStats {
             "Alt".underline(), alternation_percentage,
             "Redirect".underline(), redirect_percentage,
             "Weak redirect".underline(), weak_redirect_percentage,
+            "Other".underline(), other_percentage,
             "SFS".underline(), sfs_percentage
         );
 
