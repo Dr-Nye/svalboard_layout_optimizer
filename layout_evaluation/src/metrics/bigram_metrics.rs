@@ -5,6 +5,7 @@ use ordered_float::OrderedFloat;
 use priority_queue::DoublePriorityQueue;
 use std::{env, fmt};
 
+pub mod bigram_stats;
 pub mod finger_repeats;
 pub mod kla_distance;
 pub mod kla_finger_usage;

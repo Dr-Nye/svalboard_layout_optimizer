@@ -591,7 +591,16 @@ metrics:
       critical_bigram_fraction: 0.0003
       critical_bigram_factor: 50.0
 
-  # Key-cost based scissoring that penalizes weaker fingers doing harder work
+  bigram_stats:
+    enabled: true
+    weight: 0.0
+    normalization:
+      type: fixed
+      value: 1.0
+    params:
+      ignore_thumb: true
+      ignore_modifiers: true
+
   scissors:
     enabled: true
     weight: 100.0
