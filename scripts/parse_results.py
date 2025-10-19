@@ -17,19 +17,20 @@ METRICS_ORDER = [
     ("Total Cost", "total_cost", "number", 1),
     ("Hands Disbalance", "Hand Disbalance", "message_only", None),
     ("Finger Disbalance", "Finger Balance", "message_only", None),
-    ("Cluster Rolls", "Cluster Rolls", "number", 2),
-    ("Scissoring", "Scissoring", "number", 2),
+    ("SFB", "SFB", "number", 2),
     ("Scissors", "Scissors", "number", 2),
+    ("SFS", "SFS", "number", 2),
     ("Key Costs", "Key Costs", "number", 2),
     ("Manual Bigram Penalty", "Manual Bigram Penalty", "number", 2),
-    ("Cluster Rolls Worst", "Cluster Rolls", "worst_only", None),
-    ("Scissoring Worst", "Scissoring", "worst_only", None),
+    ("SFB Worst", "SFB", "worst_only", None),
     ("Scissors Worst", "Scissors", "worst_only", None),
+    ("SFS Worst", "SFS", "worst_only", None),
     ("Movement Pattern Worst", "Movement Pattern", "worst_only", None),
     ("Manual Bigram Penalty Worst", "Manual Bigram Penalty", "worst_only", None),
     ("Secondary Bigrams Worst", "Secondary Bigrams", "worst_only", None),
     ("Trigrams Worst", "No Handswitch in Trigram", "worst_only", None),
     ("Movement Pattern", "Movement Pattern", "number", 2),
+    ("Bigram Statistics", "Bigram Statistics", "message_only", None),
     ("Trigram Statistics", "Trigram Statistics", "message_only", None),
 ]
 
@@ -41,15 +42,25 @@ METRICS_DESCRIPTION = """## Metrics Description
 
 **hand_disbalance**: Left and right hand balance
 
+**bigram_stats**: Informational statistics showing percentages of various bigram categories:
+  - **SFB**: Same Finger Bigrams (excluding good Center→South movements)
+  - **Full Vertical**: North-South scissoring opposition
+  - **Squeeze**: Fingers moving inward (In↔Out opposition, more uncomfortable)
+  - **Splay**: Fingers moving outward (Out↔In opposition, less uncomfortable)
+  - **Half**: Diagonal movements (lateral + vertical)
+  - **Lateral**: Lateral displacement with center
+
 **direction_balance**: Tracks keypress patterns in different directions (informational only). Center and south keys are ideal
 
 **key_costs**: Penalizes using keys that are harder to reach based on position (based on direction and finger)
 
 **position_penalties**: Applies penalties when specific characters appear at specific matrix positions. Used to enforce character placement constraints, such as restricting high-frequency double letters to comfortable positions or keeping punctuation marks off homerow keys
 
-**cluster_rolls**: Evaluates the comfort of same finger bigrams. Center to south bigrams are good here.
+**sfb**: Same Finger Bigram metric that evaluates the comfort of same finger bigrams. Center to south bigrams are good here.
 
-**scissors**: Cost-based scissoring metric that penalizes adjacent finger movements where there's an effort imbalance (e.g., weak finger doing hard work while strong finger gets easy work). Penalties scale proportionally to the key cost difference and distinguish between movement types: Full Scissor Vertical (North↔South), Full Scissor Squeeze/Splay (In↔Out lateral, squeeze being worse), Half Scissor (diagonal lateral+vertical), and Lateral Stretch (lateral+center)
+**sfs**: Same Finger Skipgram (SFS) metric that evaluates the comfort of skipgrams typed with the same finger. Skipgrams are generally uncomfortable because the middle keystroke interrupts the finger movement pattern.
+
+**scissors**: Cost-based scissor metric that penalizes adjacent finger movements where there's an effort imbalance (e.g., weak finger doing hard work while strong finger gets easy work). Penalties scale proportionally to the key cost difference and distinguish between movement types: Full Scissor Vertical (North↔South), Full Scissor Squeeze/Splay (In↔Out lateral, squeeze being worse), Half Scissor (diagonal lateral+vertical), and Lateral Stretch (lateral+center)
 
 **symmetric_handswitches**: Rewards using symmetrical key positions when switching between hands, but only for center, south, and index/middle north keys
 
@@ -140,8 +151,43 @@ def extract_worst_bigrams(message: str) -> list[tuple[str, float]]:
     return [(bigram, float(percent)) for bigram, percent in matches]
 
 
+def extract_scissors_bigrams(message: str) -> list[tuple[str, str, float]]:
+    """Extract bigram pairs from Scissors category format.
+
+    Returns list of (category, bigram, percent) tuples.
+    Example input: "Full Vertical: th (5.2%), er (3.1%); Squeeze: in (4.5%)"
+    """
+    results = []
+    # Split by semicolon to get each category section
+    sections = message.split(";")
+
+    for section in sections:
+        if ":" not in section:
+            continue
+
+        category, bigrams_str = section.split(":", 1)
+        category = category.strip()
+
+        # Extract bigrams and percentages from this category
+        # Note: pattern allows for optional space after opening paren
+        pattern = r"(.{2}) \(\s*([0-9.]+)%\)"
+        matches = re.findall(pattern, bigrams_str)
+
+        for bigram, percent in matches:
+            results.append((category, bigram, float(percent)))
+
+    return results
+
+
 def add_frequencies(message: str, bigram_frequencies: dict[str, float]) -> str:
-    """Enhance Scissoring and Cluster Rolls messages with frequency data."""
+    """Enhance Scissoring and SFB messages with frequency data."""
+    # Check if this is a Scissors message (has category format)
+    if any(
+        cat in message
+        for cat in ["Full Vertical:", "Squeeze:", "Splay:", "Half:", "Lateral:"]
+    ):
+        return add_frequencies_scissors(message, bigram_frequencies)
+
     worst_bigrams = extract_worst_bigrams(message)
     if not worst_bigrams or "Worst:" not in message:
         return message
@@ -175,6 +221,38 @@ def add_frequencies(message: str, bigram_frequencies: dict[str, float]) -> str:
         enhanced_message += ";" + after_semicolon
 
     return enhanced_message
+
+
+def add_frequencies_scissors(message: str, bigram_frequencies: dict[str, float]) -> str:
+    """Enhance Scissors category messages with frequency data."""
+    scissors_bigrams = extract_scissors_bigrams(message)
+    if not scissors_bigrams:
+        return message
+
+    # Group by category
+    from collections import defaultdict
+
+    categories = defaultdict(list)
+
+    for category, bigram, percent in scissors_bigrams:
+        freq = bigram_frequencies.get(bigram, 0)
+        if freq >= 0.01:  # Only keep bigrams with sufficient frequency
+            categories[category].append((bigram, percent, freq))
+
+    category_parts = []
+    for category in ["Full Vertical", "Squeeze", "Splay", "Half", "Lateral"]:
+        if category in categories:
+            # Sort by frequency descending
+            categories[category].sort(key=lambda x: -x[2])
+
+            bigram_strs = []
+            for bigram, percent, freq in categories[category]:
+                freq_str = f"{freq:.2f}%".rstrip("0").rstrip(".")
+                bigram_strs.append(f"{bigram} ({percent:.2f}%, freq: {freq_str})")
+
+            category_parts.append(f"{category}: {', '.join(bigram_strs)}")
+
+    return "; ".join(category_parts) if category_parts else message
 
 
 def clean_worst_message(message: str, metric_name: str = "") -> str:
@@ -235,8 +313,7 @@ def process_layout_metrics(
             if (
                 core["name"]
                 in [
-                    "Scissoring",
-                    "Cluster Rolls",
+                    "SFB",
                     "Manual Bigram Penalty",
                     "Scissors",
                 ]
@@ -474,8 +551,10 @@ def export_markdown(
             "Total Cost",
             "Hands Disbalance",
             "Finger Disbalance",
-            "Cluster Rolls",
-            "Scissoring",
+            "Bigram Stats",
+            "Non-Rolls",
+            "SFB",
+            "SFS",
             "Scissors",
             "Manual Bigram Penalty",
             "Layout",
@@ -488,8 +567,10 @@ def export_markdown(
             "Total Cost": "Total Cost",
             "Hands Disbalance": "Hands Disbalance",
             "Finger Disbalance": "Finger Disbalance",
-            "Cluster Rolls": "Cluster Rolls",
-            "Scissoring": "Scissoring",
+            "Bigram Stats": "Bigram Stats",
+            "Non-Rolls": "Non-Rolls",
+            "SFB": "SFB",
+            "SFS": "SFS",
             "Scissors": "Scissors",
             "Manual Bigram Penalty": "Manual Bigram Penalty",
             "Layout": "Layout",  # Always included
