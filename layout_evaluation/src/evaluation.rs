@@ -50,7 +50,6 @@ pub struct MetricParameters {
     pub modifier_usage: Option<WeightedParams<modifier_usage::Parameters>>,
 
     pub sfb: Option<WeightedParams<sfb::Parameters>>,
-    pub scissoring: Option<WeightedParams<scissoring::Parameters>>,
     pub scissors: Option<WeightedParams<scissors::Parameters>>,
     pub symmetric_handswitches: Option<WeightedParams<symmetric_handswitches::Parameters>>,
     pub finger_repeats: Option<WeightedParams<finger_repeats::Parameters>>,
@@ -154,8 +153,7 @@ impl Evaluator {
         add_metric!(unigram_metric, key_costs, KeyCost);
 
         // bigram metrics
-        add_metric!(bigram_metric, cluster_rolls, ClusterRolls);
-        add_metric!(bigram_metric, scissoring, Scissoring);
+        add_metric!(bigram_metric, sfb, Sfb);
         add_metric!(bigram_metric, scissors, Scissors);
         add_metric!(bigram_metric, finger_repeats, FingerRepeats);
         add_metric!(bigram_metric, manual_bigram_penalty, ManualBigramPenalty);
@@ -174,6 +172,7 @@ impl Evaluator {
             no_handswitch_in_trigram,
             NoHandswitchInTrigram
         );
+        add_metric!(trigram_metric, sfs, Sfs);
         //add_metric!(trigram_metric, trigram_finger_repeats, TrigramFingerRepeats);
         //add_metric!(trigram_metric, trigram_rolls, TrigramRolls);
         //add_metric!(

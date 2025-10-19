@@ -15,7 +15,6 @@ pub mod movement_pattern;
 pub mod no_handswitch_after_unbalancing_key;
 pub mod oxey_lsbs;
 pub mod oxey_sfbs;
-pub mod scissoring;
 pub mod scissors;
 pub mod sfb;
 pub mod symmetric_handswitches;
