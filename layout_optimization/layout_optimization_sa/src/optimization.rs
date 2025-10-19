@@ -107,7 +107,7 @@ impl Anneal for AnnealingStruct {
     }
 }
 
-pub type SaIterState = IterState<Vec<usize>, (), (), (), f64>;
+pub type SaIterState = IterState<Vec<usize>, (), (), (), (), f64>;
 
 /// An observer that outputs important information in a more human-readable format than `Argmin`'s original implementation.
 struct BestObserver {
@@ -176,7 +176,7 @@ impl Observe<SaIterState> for IterationObserver {
             let mut temperature = String::from("Not found.");
             let mut accepted = String::from("Not found");
             for (key, value) in &kv.kv {
-                match *key {
+                match key.as_str() {
                     "t" => temperature = format!("{:.5}", value),
                     "acc" => accepted = value.to_string(),
                     _ => {}
@@ -321,7 +321,7 @@ pub fn optimize(
 
     // Create new SA solver with some parameters (see docs for details)
     // This essentially just prepares the SA solver. It is not run yet, nor does it know anything about the problem it is about to solve.
-    let rng = Xoshiro256PlusPlus::from_entropy();
+    let rng = Xoshiro256PlusPlus::try_from_os_rng().unwrap();
     let solver = SimulatedAnnealing::new_with_rng(init_temp, rng)
         .unwrap()
         // Optional: Define temperature function (defaults to `SATempFunc::TemperatureFast`)

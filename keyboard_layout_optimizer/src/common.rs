@@ -20,8 +20,7 @@ use std::{
 };
 
 #[derive(Parser, Debug)]
-#[clap(name = "Keyboard layout evaluation")]
-pub struct Options {
+pub struct CommonOptions {
     /// Path to ngram files
     #[clap(
         short,
@@ -76,7 +75,7 @@ pub struct PublishingOptions {
     pub publish_as: Option<String>,
 
     /// Publish the layout only if its cost is lower (better) than this value
-    #[clap(long, requires = "publish-as")]
+    #[clap(long, requires = "publish_as")]
     pub publish_if_cost_below: Option<f64>,
 
     /// Publish found layout to webservice for this layout config
@@ -88,7 +87,7 @@ pub struct PublishingOptions {
     pub publish_to: String,
 }
 
-pub fn init(options: &Options) -> (Box<dyn LayoutGenerator>, Evaluator) {
+pub fn init(options: &CommonOptions) -> (Box<dyn LayoutGenerator>, Evaluator) {
     (
         init_layout_generator(&options.layout_config, options.grouped_layout_generator),
         init_evaluator(options),
@@ -133,7 +132,7 @@ pub fn init_layout_generator(
     }
 }
 
-pub fn init_evaluator(options: &Options) -> Evaluator {
+pub fn init_evaluator(options: &CommonOptions) -> Evaluator {
     let eval_params =
         EvaluationParameters::from_yaml(&options.eval_parameters).unwrap_or_else(|e| {
             panic!(

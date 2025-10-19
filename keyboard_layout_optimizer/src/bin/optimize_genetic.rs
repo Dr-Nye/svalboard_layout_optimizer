@@ -10,7 +10,7 @@ use std::{env, process};
 struct Options {
     /// Evaluation parameters
     #[clap(flatten)]
-    evaluation_parameters: common::Options,
+    evaluation_parameters: common::CommonOptions,
 
     /// Do not optimize those keys (wrt. --start-layout or --fix-from)
     #[clap(short, long)]

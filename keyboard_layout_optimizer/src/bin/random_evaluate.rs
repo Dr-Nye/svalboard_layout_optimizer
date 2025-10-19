@@ -12,7 +12,7 @@ struct Options {
 
     /// Evaluation parameters
     #[clap(flatten)]
-    evaluation_parameters: common::Options,
+    evaluation_parameters: common::CommonOptions,
 }
 fn main() {
     dotenv::dotenv().ok();
@@ -26,7 +26,7 @@ fn main() {
     let mut best_layout: String = "".into();
 
     for _ in 0..options.number_of_samples {
-        let mut rng = rand::thread_rng();
+        let mut rng = rand::rng();
         let mut s: Vec<char> = layout_str.chars().collect();
         s.shuffle(&mut rng);
         let s: String = s.iter().collect();

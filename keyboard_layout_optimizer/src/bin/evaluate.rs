@@ -42,7 +42,7 @@ struct Options {
 
     /// General parameters
     #[clap(flatten)]
-    general_parameters: common::Options,
+    general_parameters: common::CommonOptions,
 
     /// If to only output the results as JSON to stdout
     #[clap(long)]

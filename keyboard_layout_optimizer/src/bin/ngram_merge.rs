@@ -4,7 +4,7 @@ use std::{hash::Hash, path::Path, str::FromStr};
 
 use layout_evaluation::ngrams::{Bigrams, Trigrams, Unigrams};
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 struct WeightedComponent(f64, String);
 
 impl FromStr for WeightedComponent {

@@ -17,17 +17,17 @@ layout_optimization_common = { path = "../layout_optimization/layout_optimizatio
 layout_optimization_genetic = { path = "../layout_optimization/layout_optimization_genetic" }
 layout_optimization_sa = { path = "../layout_optimization/layout_optimization_sa" }
 
-ahash = "0.7.6"
+ahash = "0.8.12"
 anyhow = "*"
-clap = { version = "^3.0.0", features = ["derive"] }
-colored = "^2.0.0"
-ctrlc = "^3.2.1"
+clap = { version = "^4.0.32", features = ["derive"] }
+colored = "^2.0.2"
+ctrlc = "^3.4.0"
 dotenv = "*"
 env_logger = "*"
 itertools = "*"
 log = "*"
 rand = "*"
-rayon = "^1.5.1"
+rayon = "^1.7.0"
 reqwest = { version = "^0.11", features = ["blocking", "json"] }
 
 # for a MUSL build use the following line instead
