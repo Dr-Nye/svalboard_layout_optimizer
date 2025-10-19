@@ -606,9 +606,9 @@ metrics:
       # Factor for Full Scissor Splay (fingers moving outward)
       full_scissor_splay_factor: 5.0
       # Factor for Half Scissor (diagonal lateral+vertical)
-      half_scissor_factor: 2.5
-      # Factor for Lateral Stretch (lateral+center)
-      lateral_stretch_factor: 1.0
+      half_scissor_factor: 1.5
+      # Factor for Lateral (lateral+center)
+      lateral_factor: 1.0
       # High-frequency scissor penalty
       critical_bigram_fraction: 0.0003
       critical_bigram_factor: 50.0

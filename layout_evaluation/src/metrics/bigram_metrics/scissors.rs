@@ -24,7 +24,7 @@
 //! **Half Scissor** - Diagonal movements with reduced conflict:
 //! - Lateral + Vertical: One finger moves laterally (In/Out), other vertically (North/South)
 //!
-//! **Lateral Stretch** - Lateral displacement:
+//! **Lateral** - Lateral displacement:
 //! - Lateral + Center: One finger moves laterally (In/Out), other presses Center
 //!
 //! **Not penalized**: Same lateral direction (In→In, Out→Out) are pure rolls.
@@ -36,18 +36,52 @@
 //! - `full_scissor_squeeze_factor`: Multiplier for squeeze motion
 //! - `full_scissor_splay_factor`: Multiplier for splay motion
 //! - `half_scissor_factor`: Multiplier for diagonal movements
-//! - `lateral_stretch_factor`: Multiplier for lateral+center
+//! - `lateral_factor`: Multiplier for lateral+center
 //! - `critical_bigram_fraction`: Frequency threshold for high-penalty bigrams (optional)
 //! - `critical_bigram_factor`: Multiplier for high-frequency bigrams (optional)
 
 use super::BigramMetric;
 
+use colored::Colorize;
 use keyboard_layout::{
     key::{Direction::*, Finger},
     layout::{LayerKey, Layout},
 };
 
+use ordered_float::OrderedFloat;
+use priority_queue::DoublePriorityQueue;
 use serde::Deserialize;
+use std::env;
+
+#[derive(Clone, Debug, PartialEq, Eq, Hash)]
+pub enum ScissorCategory {
+    FullVertical,
+    FullSqueeze,
+    FullSplay,
+    HalfScissor,
+    Lateral,
+}
+
+impl ScissorCategory {
+    /// Order in which categories are displayed in output
+    const DISPLAY_ORDER: [ScissorCategory; 5] = [
+        ScissorCategory::FullVertical,
+        ScissorCategory::FullSqueeze,
+        ScissorCategory::FullSplay,
+        ScissorCategory::HalfScissor,
+        ScissorCategory::Lateral,
+    ];
+
+    fn display_name(&self) -> String {
+        match self {
+            ScissorCategory::FullVertical => "Full Vertical".underline().to_string(),
+            ScissorCategory::FullSqueeze => "Squeeze".underline().to_string(),
+            ScissorCategory::FullSplay => "Splay".underline().to_string(),
+            ScissorCategory::HalfScissor => "Half".underline().to_string(),
+            ScissorCategory::Lateral => "Lateral".underline().to_string(),
+        }
+    }
+}
 
 #[derive(Clone, Deserialize, Debug)]
 pub struct Parameters {
@@ -59,8 +93,8 @@ pub struct Parameters {
     pub full_scissor_splay_factor: f64,
     /// Base cost factor for Half Scissor (diagonal lateral+vertical)
     pub half_scissor_factor: f64,
-    /// Base cost factor for Lateral Stretch (lateral+center)
-    pub lateral_stretch_factor: f64,
+    /// Base cost factor for Lateral (lateral+center)
+    pub lateral_factor: f64,
     /// Minimum relative bigram frequency to apply heavy penalty (as fraction, e.g., 0.0004 = 0.04%)
     pub critical_bigram_fraction: Option<f64>,
     /// Multiplier for bigrams above critical_bigram_fraction (e.g., 100.0 = 100x penalty)
@@ -73,7 +107,7 @@ pub struct Scissors {
     full_scissor_squeeze_factor: f64,
     full_scissor_splay_factor: f64,
     half_scissor_factor: f64,
-    lateral_stretch_factor: f64,
+    lateral_factor: f64,
     critical_bigram_fraction: Option<f64>,
     critical_bigram_factor: Option<f64>,
 }
@@ -85,7 +119,7 @@ impl Scissors {
             full_scissor_squeeze_factor: params.full_scissor_squeeze_factor,
             full_scissor_splay_factor: params.full_scissor_splay_factor,
             half_scissor_factor: params.half_scissor_factor,
-            lateral_stretch_factor: params.lateral_stretch_factor,
+            lateral_factor: params.lateral_factor,
             critical_bigram_fraction: params.critical_bigram_fraction,
             critical_bigram_factor: params.critical_bigram_factor,
         }
@@ -102,7 +136,12 @@ impl Scissors {
         Some(base_factor * cost_diff)
     }
 
-    fn bigram_cost(&self, k1: &LayerKey, k2: &LayerKey, _layout: &Layout) -> Option<f64> {
+    fn bigram_cost_with_category(
+        &self,
+        k1: &LayerKey,
+        k2: &LayerKey,
+        _layout: &Layout,
+    ) -> Option<(f64, ScissorCategory)> {
         // Only adjacent non-thumb fingers
         if (k1 == k2 && k1.is_modifier.is_some())
             || k1.key.hand != k2.key.hand
@@ -125,38 +164,53 @@ impl Scissors {
             (In, In) | (Out, Out) => None,
 
             // FSB: Full Scissor Vertical - North-South opposition
-            (South, North) | (North, South) => {
-                self.cost_difference_penalty(cost_from, cost_to, self.full_scissor_vertical_factor)
-            }
+            (South, North) | (North, South) => self
+                .cost_difference_penalty(cost_from, cost_to, self.full_scissor_vertical_factor)
+                .map(|cost| (cost, ScissorCategory::FullVertical)),
 
             // FSB: Full Scissor Lateral - In-Out opposition (squeeze/splay)
             (In, Out) | (Out, In) => {
                 let inward_motion = finger_from.numeric_index() > finger_to.numeric_index();
                 let is_squeeze = inward_motion ^ (dir_from == Out);
 
-                let factor = if is_squeeze {
-                    self.full_scissor_squeeze_factor
+                let (factor, category) = if is_squeeze {
+                    (
+                        self.full_scissor_squeeze_factor,
+                        ScissorCategory::FullSqueeze,
+                    )
                 } else {
-                    self.full_scissor_splay_factor
+                    (self.full_scissor_splay_factor, ScissorCategory::FullSplay)
                 };
 
                 self.cost_difference_penalty(cost_from, cost_to, factor)
+                    .map(|cost| (cost, category))
             }
 
             // HSB: Half Scissor - Diagonal movements (lateral + vertical)
-            (In, North) | (Out, North) | (North, In) | (North, Out)
-            | (In, South) | (Out, South) | (South, In) | (South, Out) => {
-                self.cost_difference_penalty(cost_from, cost_to, self.half_scissor_factor)
-            }
+            (In, North)
+            | (Out, North)
+            | (North, In)
+            | (North, Out)
+            | (In, South)
+            | (Out, South)
+            | (South, In)
+            | (South, Out) => self
+                .cost_difference_penalty(cost_from, cost_to, self.half_scissor_factor)
+                .map(|cost| (cost, ScissorCategory::HalfScissor)),
 
-            // LSB: Lateral Stretch - Lateral displacement with center
-            (In, Center) | (Out, Center) | (Center, In) | (Center, Out) => {
-                self.cost_difference_penalty(cost_from, cost_to, self.lateral_stretch_factor)
-            }
+            // Lateral - Lateral displacement with center
+            (In, Center) | (Out, Center) | (Center, In) | (Center, Out) => self
+                .cost_difference_penalty(cost_from, cost_to, self.lateral_factor)
+                .map(|cost| (cost, ScissorCategory::Lateral)),
 
             // All other combinations: not considered scissors
             _ => None,
         }
+    }
+
+    fn bigram_cost(&self, k1: &LayerKey, k2: &LayerKey, layout: &Layout) -> Option<f64> {
+        self.bigram_cost_with_category(k1, k2, layout)
+            .map(|(cost, _)| cost)
     }
 }
 
@@ -176,7 +230,6 @@ impl BigramMetric for Scissors {
     ) -> Option<f64> {
         match self.bigram_cost(k1, k2, layout) {
             Some(base_cost) => {
-                // Apply frequency-based multiplier if configured
                 let frequency_multiplier = if let (Some(threshold), Some(factor)) =
                     (self.critical_bigram_fraction, self.critical_bigram_factor)
                 {
@@ -194,5 +247,108 @@ impl BigramMetric for Scissors {
             }
             None => Some(0.0),
         }
+    }
+
+    fn total_cost(
+        &self,
+        bigrams: &[((&LayerKey, &LayerKey), f64)],
+        total_weight: Option<f64>,
+        layout: &Layout,
+    ) -> (f64, Option<String>) {
+        let show_worst: bool = env::var("SHOW_WORST")
+            .ok()
+            .and_then(|s| s.parse().ok())
+            .unwrap_or(true);
+        let n_worst: usize = env::var("N_WORST")
+            .ok()
+            .and_then(|s| s.parse().ok())
+            .unwrap_or(3);
+
+        let total_weight = total_weight.unwrap_or_else(|| bigrams.iter().map(|(_, w)| w).sum());
+
+        if !show_worst {
+            let total_cost: f64 = bigrams
+                .iter()
+                .filter_map(|(bigram, weight)| {
+                    self.individual_cost(bigram.0, bigram.1, *weight, total_weight, layout)
+                })
+                .sum();
+            return (total_cost, None);
+        }
+
+        // Track worst bigrams by category
+        use std::collections::HashMap;
+        let mut category_queues: HashMap<
+            ScissorCategory,
+            DoublePriorityQueue<usize, OrderedFloat<f64>>,
+        > = HashMap::new();
+        let mut total_cost = 0.0;
+
+        for (i, (bigram, weight)) in bigrams.iter().enumerate() {
+            if let Some((base_cost, category)) =
+                self.bigram_cost_with_category(bigram.0, bigram.1, layout)
+            {
+                let frequency_multiplier = if let (Some(threshold), Some(factor)) =
+                    (self.critical_bigram_fraction, self.critical_bigram_factor)
+                {
+                    let relative_weight = weight / total_weight;
+                    if relative_weight > threshold {
+                        factor
+                    } else {
+                        1.0
+                    }
+                } else {
+                    1.0
+                };
+
+                let cost = weight * base_cost * frequency_multiplier;
+                total_cost += cost;
+
+                let queue = category_queues.entry(category).or_default();
+                queue.push(i, OrderedFloat(cost));
+
+                if queue.len() > n_worst {
+                    queue.pop_min();
+                }
+            }
+        }
+
+        let mut category_msgs: Vec<String> = Vec::new();
+
+        for category in ScissorCategory::DISPLAY_ORDER {
+            if let Some(queue) = category_queues.get(&category) {
+                let worst_msgs: Vec<String> = queue
+                    .clone()
+                    .into_sorted_iter()
+                    .rev()
+                    .filter(|(_, cost)| cost.into_inner() > 0.0)
+                    .map(|(i, cost)| {
+                        let (gram, _) = bigrams[i];
+                        format!(
+                            "{}{} ({:>5.2}%)",
+                            gram.0,
+                            gram.1,
+                            100.0 * cost.into_inner() / total_cost,
+                        )
+                    })
+                    .collect();
+
+                if !worst_msgs.is_empty() {
+                    category_msgs.push(format!(
+                        "{}: {}",
+                        category.display_name(),
+                        worst_msgs.join(", ")
+                    ));
+                }
+            }
+        }
+
+        let msg = if category_msgs.is_empty() {
+            None
+        } else {
+            Some(category_msgs.join("; "))
+        };
+
+        (total_cost, msg)
     }
 }
