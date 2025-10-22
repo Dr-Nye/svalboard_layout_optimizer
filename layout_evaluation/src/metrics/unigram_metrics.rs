@@ -3,6 +3,7 @@ use keyboard_layout::layout::{LayerKey, Layout};
 use ordered_float::OrderedFloat;
 use priority_queue::DoublePriorityQueue;
 
+use super::format_utils::{format_percentages, visualize_whitespace};
 use std::{env, fmt};
 
 pub mod finger_balance;
@@ -77,11 +78,15 @@ pub trait UnigramMetric: Send + Sync + UnigramMetricClone + fmt::Debug {
                 .rev()
                 .filter(|(_, cost)| cost.into_inner() > 0.0)
                 .map(|(i, cost)| {
-                    let (gram, _) = unigrams[i];
+                    let (gram, weight) = unigrams[i];
+                    let freq_pct = 100.0 * weight / total_weight;
+                    let cost_pct = 100.0 * cost.into_inner() / total_cost;
+                    let percentages = format_percentages(cost_pct, freq_pct);
+                    let gram_str = format!("{}", gram);
                     format!(
-                        "{} ({:>5.2}%)",
-                        gram,
-                        100.0 * cost.into_inner() / total_cost,
+                        "{} {}",
+                        visualize_whitespace(&gram_str),
+                        percentages
                     )
                 })
                 .collect();
