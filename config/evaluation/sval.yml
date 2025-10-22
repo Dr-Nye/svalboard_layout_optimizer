@@ -598,24 +598,35 @@ metrics:
       type: fixed
       value: 1.0
     params:
-      ignore_thumb: true
+      ignore_thumbs: true
       ignore_modifiers: true
 
-  scissors:
+  fsb:
+    enabled: true
+    weight: 1000.0
+    normalization:
+      type: weight_found
+      value: 1.0
+    params:
+      # Factor for Vertical (North-South opposition)
+      vertical_factor: 1.0
+      # Factor for Squeeze (fingers moving inward)
+      squeeze_factor: 1.0
+      # Factor for Splay (fingers moving outward)
+      splay_factor: 1.0
+      # High-frequency scissor penalty
+      critical_bigram_fraction: 0.0003
+      critical_bigram_factor: 50.0
+
+  hsb:
     enabled: true
     weight: 100.0
     normalization:
       type: weight_found
       value: 1.0
     params:
-      # Factor for Full Scissor Vertical (North-South opposition)
-      full_scissor_vertical_factor: 5.0
-      # Factor for Full Scissor Squeeze (fingers moving inward)
-      full_scissor_squeeze_factor: 5.0
-      # Factor for Full Scissor Splay (fingers moving outward)
-      full_scissor_splay_factor: 5.0
-      # Factor for Half Scissor (diagonal lateral+vertical)
-      half_scissor_factor: 1.5
+      # Factor for diagonal (lateral+vertical)
+      diagonal_factor: 5.0
       # Factor for Lateral (lateral+center)
       lateral_factor: 1.0
       # High-frequency scissor penalty
