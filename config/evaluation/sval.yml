@@ -1,33 +1,29 @@
 metrics:
   finger_balance:
     enabled: true
-    weight: 25.0
+    weight: 50.0
     normalization:
       type: fixed
       value: 1.0
     params:
-      # Thumb values are ignored.
       intended_loads:
-        [Left, Pinky]: 1.1
-        [Left, Ring]: 1.3
-        [Left, Middle]: 1.9
-        [Left, Index]: 2
-        [Left, Thumb]: 2
-        [Right, Thumb]: 2
-        [Right, Index]: 2
-        [Right, Middle]: 1.9
-        [Right, Ring]: 1.3
-        [Right, Pinky]: 1.1
+        [Left, Pinky]: 8.5
+        [Left, Ring]: 11.5
+        [Left, Middle]: 14
+        [Left, Index]: 16
+        [Right, Index]: 16
+        [Right, Middle]: 14
+        [Right, Ring]: 11.5
+        [Right, Pinky]: 8.5
       finger_factors:
-        Pinky: 2.0
-        Ring: 1.25
+        Pinky: 1.4
+        Ring: 1.2
         Middle: 1.0
-        Index: 0.75
-        Thumb: 1.0
+        Index: 0.8
 
   hand_disbalance:
     enabled: true
-    weight: 50.0
+    weight: 25.0
     normalization:
       type: fixed
       value: 1.0
