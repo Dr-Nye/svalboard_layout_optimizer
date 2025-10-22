@@ -577,15 +577,15 @@ metrics:
           Pad: 3.0
 
       finger_factors:
-        Pinky: 2.0
-        Ring: 1.5
+        Pinky: 1.5
+        Ring: 1.0
         Middle: 1.0
         Index: 0.75
         Thumb: 1.0
 
       # High-frequency roll penalty
-      critical_bigram_fraction: 0.0003
-      critical_bigram_factor: 50.0
+      critical_bigram_fraction: 0.0005
+      critical_bigram_factor: 100.0
 
   bigram_stats:
     enabled: true
