@@ -541,8 +541,8 @@ metrics:
 
     params:
       default_cost: 0
-      ignore_thumb: true
-      exclude_modifiers: false
+      ignore_thumbs: true
+      exclude_modifiers: true
 
       # Format:
       #   from:

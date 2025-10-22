@@ -1,13 +1,33 @@
-//! SFB (Same Finger Bigram) metric.
+//! Same Finger Bigram (SFB) metric for consecutive keystrokes with the same finger.
 //!
-//! A same-finger bigram (SFB) occurs when consecutive keystrokes are typed with the same finger
-//! on different keys.
+//! ## Core Principle
 //!
-//! This implementation provides:
-//! - Directional cost matrices: Different movement directions have different costs
-//! - Per-finger multipliers: Some fingers handle SFBs better than others
-//! - Critical bigram penalties: High-frequency SFBs can receive additional penalties
-//! - Optional thumb exclusion: Thumbs can be excluded from SFB calculations
+//! A same-finger bigram occurs when consecutive keystrokes are typed with the same finger
+//! on different keys. This is generally uncomfortable and slower than alternating fingers.
+//!
+//! Costs are determined by:
+//! - **Movement direction**: Different direction pairs (North→South, Center→Out, etc.) have different costs
+//! - **Finger strength**: Some fingers handle SFBs better than others (configurable multipliers)
+//! - **Frequency**: High-frequency SFBs can receive additional penalties
+//!
+//! ## Movement Classification
+//!
+//! SFB costs are defined by directional cost matrices mapping from-direction → to-direction pairs.
+//! Common patterns include:
+//! - Vertical movements (North ↔ South)
+//! - Lateral movements (In ↔ Out)
+//! - Center transitions (Center → North/South/In/Out)
+//!
+//! ## Configuration
+//!
+//! All factors and thresholds are configurable in the evaluation metrics:
+//! - `default_cost`: Fallback cost for undefined direction pairs
+//! - `costs`: Direction-pair cost matrix
+//! - `finger_factors`: Per-finger multipliers (e.g., index finger may handle SFBs better)
+//! - `ignore_thumbs`: Whether to exclude thumb SFBs from calculation
+//! - `exclude_modifiers`: Whether to skip bigrams involving modifier keys
+//! - `critical_bigram_fraction`: Frequency threshold for high-penalty bigrams (optional)
+//! - `critical_bigram_factor`: Multiplier for high-frequency bigrams (optional)
 use super::BigramMetric;
 
 use ahash::AHashMap;
@@ -21,7 +41,7 @@ use serde::Deserialize;
 #[derive(Clone, Deserialize, Debug)]
 pub struct Parameters {
     pub default_cost: f64,
-    pub ignore_thumb: bool,
+    pub ignore_thumbs: bool,
     pub exclude_modifiers: Option<bool>,
     pub costs: AHashMap<Direction, AHashMap<Direction, f64>>,
     pub finger_factors: AHashMap<Finger, f64>,
@@ -34,7 +54,7 @@ pub struct Parameters {
 #[derive(Clone, Debug)]
 pub struct Sfb {
     default_cost: f64,
-    ignore_thumb: bool,
+    ignore_thumbs: bool,
     exclude_modifiers: bool,
     costs: AHashMap<Direction, AHashMap<Direction, f64>>,
     finger_factors: AHashMap<Finger, f64>,
@@ -46,7 +66,7 @@ impl Sfb {
     pub fn new(params: &Parameters) -> Self {
         Self {
             costs: params.costs.clone(),
-            ignore_thumb: params.ignore_thumb,
+            ignore_thumbs: params.ignore_thumbs,
             exclude_modifiers: params.exclude_modifiers.unwrap_or(false),
             default_cost: params.default_cost,
             finger_factors: params.finger_factors.clone(),
@@ -91,7 +111,7 @@ impl BigramMetric for Sfb {
         }
 
         // Skip thumbs if configured
-        if self.ignore_thumb && k1.key.finger == Finger::Thumb {
+        if self.ignore_thumbs && k1.key.finger == Finger::Thumb {
             return Some(0.0);
         }
 

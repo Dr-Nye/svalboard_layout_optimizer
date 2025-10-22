@@ -14,14 +14,14 @@ use serde::Deserialize;
 
 #[derive(Clone, Deserialize, Debug)]
 pub struct Parameters {
-    pub ignore_thumb: bool,
+    pub ignore_thumbs: bool,
     pub ignore_modifiers: bool,
     pub finger_factors: AHashMap<Finger, f64>,
 }
 
 #[derive(Clone, Debug)]
 pub struct Sfs {
-    ignore_thumb: bool,
+    ignore_thumbs: bool,
     ignore_modifiers: bool,
     finger_factors: AHashMap<Finger, f64>,
 }
@@ -29,7 +29,7 @@ pub struct Sfs {
 impl Sfs {
     pub fn new(params: &Parameters) -> Self {
         Self {
-            ignore_thumb: params.ignore_thumb,
+            ignore_thumbs: params.ignore_thumbs,
             ignore_modifiers: params.ignore_modifiers,
             finger_factors: params.finger_factors.clone(),
         }
@@ -72,7 +72,7 @@ impl TrigramMetric for Sfs {
         }
 
         // Skip thumbs if configured
-        if self.ignore_thumb && k1.key.finger == Finger::Thumb {
+        if self.ignore_thumbs && k1.key.finger == Finger::Thumb {
             return Some(0.0);
         }
 
