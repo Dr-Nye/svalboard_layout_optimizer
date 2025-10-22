@@ -4,7 +4,6 @@ This script checks your layout-config and removes all impossible ngrams from row
 
 import yaml
 import os
-import shutil
 
 
 def load_yaml_from_file(yaml_file):

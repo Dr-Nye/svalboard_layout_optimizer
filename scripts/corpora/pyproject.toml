@@ -1,0 +1,10 @@
+[project]
+name = "corpora"
+version = "0.1.0"
+description = "Text corpus processing tools for keyboard layout optimization - clean and generate n-gram frequency tables from English (Reddit) and French (Leipzig) corpora"
+readme = "README.md"
+requires-python = ">=3.13"
+dependencies = [
+    "convokit>=3.5.0",
+    "typer>=0.17.4",
+]

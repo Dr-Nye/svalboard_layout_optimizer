@@ -1,0 +1,194 @@
+version: "3"
+
+vars:
+  CORPORA_DIR: corpora
+  NGRAMS_DIR: ../../ngrams
+  # French corpus configuration
+  FRENCH_CORPUS_NAMES: [fra_news_2024_1M, fra-eu_web_2017_1M, fra_wikipedia_2021_1M]
+  FRENCH_NGRAM_DIRS: [fra_news, fra_web, fra_wikipedia]
+
+tasks:
+  default:
+    desc: Run all corpus pipelines (Reddit + French)
+    deps: [all]
+
+  # ============================================================================
+  # Internal helper tasks (reusable across pipelines)
+  # ============================================================================
+
+  _download-leipzig:
+    internal: true
+    desc: Download and extract a Leipzig corpus
+    vars:
+      CORPUS_NAME: "{{.CORPUS_NAME}}"
+      CORPUS_URL: "{{.CORPUS_URL}}"
+      OUTPUT_FILE: "{{.OUTPUT_FILE}}"
+      EXTRACT_DIR: "{{.EXTRACT_DIR}}"
+    sources:
+      - "{{.CORPUS_URL}}"
+    generates:
+      - "{{.CORPORA_DIR}}/{{.OUTPUT_FILE}}"
+    cmds:
+      - mkdir -p {{.CORPORA_DIR}}
+      - test -f {{.CORPORA_DIR}}/{{.CORPUS_NAME}}.tar.gz || wget -O {{.CORPORA_DIR}}/{{.CORPUS_NAME}}.tar.gz {{.CORPUS_URL}}
+      - tar -xzf {{.CORPORA_DIR}}/{{.CORPUS_NAME}}.tar.gz -C {{.CORPORA_DIR}}
+      - find {{.CORPORA_DIR}}/{{.EXTRACT_DIR}} -name "*sentences.txt" -exec cp {} {{.CORPORA_DIR}}/{{.OUTPUT_FILE}} \;
+
+  _clean-corpus:
+    internal: true
+    desc: Clean a corpus file with language-specific rules
+    vars:
+      INPUT_FILE: "{{.INPUT_FILE}}"
+      OUTPUT_FILE: "{{.OUTPUT_FILE}}"
+      CLEANER_SCRIPT: "{{.CLEANER_SCRIPT}}"
+    sources:
+      - "{{.CORPORA_DIR}}/{{.INPUT_FILE}}"
+    generates:
+      - "{{.CORPORA_DIR}}/{{.OUTPUT_FILE}}"
+    cmds:
+      - uv run {{.CLEANER_SCRIPT}} {{.CORPORA_DIR}}/{{.INPUT_FILE}} {{.CORPORA_DIR}}/{{.OUTPUT_FILE}}
+
+  _generate-ngrams:
+    internal: true
+    desc: Generate ngrams for a cleaned corpus
+    vars:
+      INPUT_FILE: "{{.INPUT_FILE}}"
+      OUTPUT_DIR: "{{.OUTPUT_DIR}}"
+    sources:
+      - "{{.CORPORA_DIR}}/{{.INPUT_FILE}}"
+    generates:
+      - "{{.NGRAMS_DIR}}/{{.OUTPUT_DIR}}/1-grams.txt"
+    cmds:
+      - mkdir -p {{.NGRAMS_DIR}}/{{.OUTPUT_DIR}}
+      - cd ../.. && cargo run --bin ngrams -- scripts/corpora/{{.CORPORA_DIR}}/{{.INPUT_FILE}} ngrams/{{.OUTPUT_DIR}}
+      - uv run python ../ngrams/normalize.py {{.NGRAMS_DIR}}/{{.OUTPUT_DIR}}
+
+  # ============================================================================
+  # Reddit pipeline
+  # ============================================================================
+
+  extract-reddit:
+    desc: Download and extract Reddit corpus using ConvoKit
+    generates:
+      - "{{.CORPORA_DIR}}/reddit-small-raw.txt"
+    cmds:
+      - mkdir -p {{.CORPORA_DIR}}
+      - uv run -m corpora_builder.extract_convokit {{.CORPORA_DIR}}/reddit-small-raw.txt
+
+  clean-reddit:
+    desc: Clean Reddit corpus
+    deps: [extract-reddit]
+    method: checksum
+    cmds:
+      - task: _clean-corpus
+        vars:
+          INPUT_FILE: "reddit-small-raw.txt"
+          OUTPUT_FILE: "reddit-small-cleaned.txt"
+          CLEANER_SCRIPT: "-m corpora_builder.clean_reddit_corpus"
+
+  generate-reddit-ngrams:
+    desc: Generate Reddit ngrams
+    deps: [clean-reddit]
+    cmds:
+      - task: _generate-ngrams
+        vars:
+          INPUT_FILE: "reddit-small-cleaned.txt"
+          OUTPUT_DIR: "eng_reddit_small"
+
+  reddit:
+    desc: Build Reddit ngrams (complete pipeline)
+    deps: [generate-reddit-ngrams]
+
+  # ============================================================================
+  # French pipeline
+  # ============================================================================
+
+  download-french:
+    desc: Download French corpora from Leipzig
+    cmds:
+      - for: { var: FRENCH_CORPUS_NAMES }
+        task: _download-leipzig
+        vars:
+          CORPUS_NAME: "{{.ITEM}}"
+          CORPUS_URL: "https://downloads.wortschatz-leipzig.de/corpora/{{.ITEM}}.tar.gz"
+          OUTPUT_FILE: "{{.ITEM}}-sentences.txt"
+          EXTRACT_DIR: "{{.ITEM}}"
+
+  clean-french:
+    desc: Clean French corpora
+    deps: [download-french]
+    method: checksum
+    cmds:
+      - for: { var: FRENCH_CORPUS_NAMES }
+        task: _clean-corpus
+        vars:
+          INPUT_FILE: "{{.ITEM}}-sentences.txt"
+          OUTPUT_FILE: "{{.ITEM}}-cleaned.txt"
+          CLEANER_SCRIPT: "-m corpora_builder.clean_french_corpus"
+
+  generate-french-ngrams:
+    desc: Generate French ngrams
+    deps: [clean-french]
+    vars:
+      INDICES: '{{untilStep 0 (len .FRENCH_CORPUS_NAMES) 1 | join " "}}'
+    cmds:
+      - for:
+          var: INDICES
+          split: " "
+        task: _generate-ngrams
+        vars:
+          INPUT_FILE: "{{index .FRENCH_CORPUS_NAMES (atoi .ITEM)}}-cleaned.txt"
+          OUTPUT_DIR: "{{index .FRENCH_NGRAM_DIRS (atoi .ITEM)}}"
+
+  merge-french:
+    desc: Merge French ngrams (web 50%, news 30%, wikipedia 20%)
+    deps: [generate-french-ngrams]
+    sources:
+      - "{{.NGRAMS_DIR}}/fra_news/1-grams.txt"
+      - "{{.NGRAMS_DIR}}/fra_web/1-grams.txt"
+      - "{{.NGRAMS_DIR}}/fra_wikipedia/1-grams.txt"
+    generates:
+      - "{{.NGRAMS_DIR}}/fra_leipzig/1-grams.txt"
+    cmds:
+      - mkdir -p {{.NGRAMS_DIR}}/fra_leipzig
+      - cd ../.. && cargo run --bin ngram_merge -- ngrams/fra_leipzig ngrams/fra_web:50 ngrams/fra_news:30 ngrams/fra_wikipedia:20
+      - uv run python ../ngrams/normalize.py {{.NGRAMS_DIR}}/fra_leipzig
+
+  french:
+    desc: Build French ngrams (complete pipeline)
+    deps: [merge-french]
+
+  # ============================================================================
+  # English-French merged pipeline
+  # ============================================================================
+
+  merge-eng-fra:
+    desc: Merge English Reddit (80%) with French Leipzig (20%)
+    deps: [reddit, french]
+    sources:
+      - "{{.NGRAMS_DIR}}/eng_reddit_small/1-grams.txt"
+      - "{{.NGRAMS_DIR}}/fra_leipzig/1-grams.txt"
+    generates:
+      - "{{.NGRAMS_DIR}}/eng_fra/1-grams.txt"
+    cmds:
+      - mkdir -p {{.NGRAMS_DIR}}/eng_fra
+      - cd ../.. && cargo run --bin ngram_merge -- ngrams/eng_fra ngrams/eng_reddit_small:70 ngrams/fra_web:30
+      - uv run python ../ngrams/normalize.py {{.NGRAMS_DIR}}/eng_fra
+
+  # ============================================================================
+  # Meta tasks
+  # ============================================================================
+
+  all:
+    desc: Build all ngrams (Reddit, French, and English-French merged)
+    deps: [merge-eng-fra]
+
+  clean:
+    desc: Remove all downloads and generated files
+    cmds:
+      - rm -rf {{.CORPORA_DIR}}
+      - rm -rf {{.NGRAMS_DIR}}/eng_reddit_small
+      - for: { var: FRENCH_NGRAM_DIRS }
+        cmd: rm -rf {{.NGRAMS_DIR}}/{{.ITEM}}
+      - rm -rf {{.NGRAMS_DIR}}/fra_leipzig
+      - rm -rf {{.NGRAMS_DIR}}/eng_fra
