@@ -19,6 +19,9 @@ tasks:
         sh: |
           LAYOUTS=""
           while IFS= read -r layout || [[ -n "$layout" ]]; do
+            if [[ "$layout" =~ ^[[:space:]]*# ]]; then
+              continue
+            fi
             if [[ -n "$layout" && "$layout" != *"□"* ]]; then
               continue
             fi
@@ -43,6 +46,7 @@ tasks:
       NGRAMS: "{{.NGRAMS}}"
       LAYOUT_FILE: "{{.LAYOUT_FILE}}"
       TEMP_DIR: "temp"
+      FILTERED_LAYOUT_FILE: "{{.TEMP_DIR}}/filtered_layouts.txt"
       JSON_OUT:
         sh: basename "{{.LAYOUT_FILE}}" .txt | sed 's/^/temp\//' | sed 's/$/.json/'
       TXT_OUT:
@@ -50,11 +54,25 @@ tasks:
       EVAL_OUT: "evaluation/{{.NGRAMS}}"
     cmds:
       - mkdir -p "{{.TEMP_DIR}}"
+      - defer: rm -rf "{{.TEMP_DIR}}"
+      - |
+        # Filter out comments and empty lines from layout file
+        while IFS= read -r layout || [[ -n "$layout" ]]; do
+          # Skip lines that start with # (comments)
+          if [[ "$layout" =~ ^[[:space:]]*# ]]; then
+            continue
+          fi
+          # Skip empty lines
+          if [[ -z "$layout" ]]; then
+            continue
+          fi
+          echo "$layout"
+        done < "{{.LAYOUT_FILE}}" > "{{.FILTERED_LAYOUT_FILE}}"
       - |
         cargo run --bin evaluate -- \
           --layout-config config/keyboard/sval.yml \
           --ngrams ngrams/{{.NGRAMS}} \
-          --from-file "{{.LAYOUT_FILE}}" \
+          --from-file "{{.FILTERED_LAYOUT_FILE}}" \
           --sort \
           --json > "{{.JSON_OUT}}"
       - rm -rf "{{.EVAL_OUT}}"
@@ -62,10 +80,9 @@ tasks:
         cargo run --bin evaluate -- \
           --layout-config config/keyboard/sval.yml \
           --ngrams ngrams/{{.NGRAMS}} \
-          --from-file "{{.LAYOUT_FILE}}" \
+          --from-file "{{.FILTERED_LAYOUT_FILE}}" \
           --sort > "{{.TXT_OUT}}"
       - uv run --project scripts scripts/report/report.py "{{.JSON_OUT}}" --corpus "{{.NGRAMS}}" --out "{{.EVAL_OUT}}"
-      - defer: rm -rf "{{.TEMP_DIR}}"
 
   # --- Public  ---------------------------------------------------------------
 
