@@ -137,6 +137,12 @@ metrics:
       squeeze_factor: 1.0
       # Factor for Splay (fingers moving outward)
       splay_factor: 1.0
+      # Per-finger multipliers
+      finger_factors:
+        Pinky: 1.5
+        Ring: 1.0
+        Middle: 1.0
+        Index: 0.75
       # High-frequency scissor penalty
       critical_bigram_fraction: 0.0003
       critical_bigram_factor: 50.0
@@ -152,6 +158,12 @@ metrics:
       diagonal_factor: 5.0
       # Factor for Lateral (lateral+center)
       lateral_factor: 1.0
+      # Per-finger multipliers
+      finger_factors:
+        Pinky: 1.5
+        Ring: 1.0
+        Middle: 1.0
+        Index: 0.75
       # High-frequency scissor penalty
       critical_bigram_fraction: 0.0003
       critical_bigram_factor: 50.0

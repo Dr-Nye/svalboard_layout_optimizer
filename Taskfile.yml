@@ -64,7 +64,7 @@ tasks:
           --ngrams ngrams/{{.NGRAMS}} \
           --from-file "{{.LAYOUT_FILE}}" \
           --sort > "{{.TXT_OUT}}"
-      - uv run --project scripts scripts/parse_results.py "{{.JSON_OUT}}" --corpus "{{.NGRAMS}}" --out "{{.EVAL_OUT}}"
+      - uv run --project scripts scripts/report/report.py "{{.JSON_OUT}}" --corpus "{{.NGRAMS}}" --out "{{.EVAL_OUT}}"
       - defer: rm -rf "{{.TEMP_DIR}}"
 
   # --- Public  ---------------------------------------------------------------

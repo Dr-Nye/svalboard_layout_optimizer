@@ -5,6 +5,7 @@ import json
 import re
 from pathlib import Path
 from typing import Optional
+from urllib.parse import quote
 
 import typer
 from rich.console import Console
@@ -13,17 +14,36 @@ from rich.console import Console
 # CONSTANTS
 # =============================================================================
 
+# Frequency and formatting
+DEFAULT_FREQ_THRESHOLD = 0.01  # 1% - minimum frequency to include in reports
+BALANCE_METRIC_DECIMALS = 1  # decimal places for balance metrics
+DEFAULT_METRIC_DECIMALS = 2  # decimal places for most metrics
+
+# Regex patterns (compiled once at module level)
+SECTION_RE = re.compile(r"^\s*([^:;]+):\s*(.*)$")
+ENTRY_RE = re.compile(
+    r"(?:(?<=^)|(?<=,)|(?<=;)|(?<=:))\s*"  # entry boundary
+    r"(?P<token>.+?)\s*"  # token (lazy)
+    r"(?P<cost>\d+(?:\.\d+)?)%\|"  # cost%
+    r"(?P<freq>\d+(?:\.\d+)?)%",  # freq%
+    re.S,
+)
+
 METRICS_ORDER = [
     ("Total Cost", "total_cost", "number", 1),
     ("Hands Disbalance", "Hand Disbalance", "message_only", None),
     ("Finger Disbalance", "Finger Balance", "message_only", None),
     ("SFB", "SFB", "number", 2),
     ("Scissors", "Scissors", "number", 2),
+    ("FSB", "FSB", "number", 2),
+    ("HSB", "HSB", "number", 2),
     ("SFS", "SFS", "number", 2),
     ("Key Costs", "Key Costs", "number", 2),
     ("Manual Bigram Penalty", "Manual Bigram Penalty", "number", 2),
     ("SFB Worst", "SFB", "worst_only", None),
     ("Scissors Worst", "Scissors", "worst_only", None),
+    ("FSB Worst", "FSB", "worst_only", None),
+    ("HSB Worst", "HSB", "worst_only", None),
     ("SFS Worst", "SFS", "worst_only", None),
     ("Movement Pattern Worst", "Movement Pattern", "worst_only", None),
     ("Manual Bigram Penalty Worst", "Manual Bigram Penalty", "worst_only", None),
@@ -62,6 +82,10 @@ METRICS_DESCRIPTION = """## Metrics Description
 
 **scissors**: Cost-based scissor metric that penalizes adjacent finger movements where there's an effort imbalance (e.g., weak finger doing hard work while strong finger gets easy work). Penalties scale proportionally to the key cost difference and distinguish between movement types: Full Scissor Vertical (North↔South), Full Scissor Squeeze/Splay (In↔Out lateral, squeeze being worse), Half Scissor (diagonal lateral+vertical), and Lateral Stretch (lateral+center)
 
+**fsb**: Full Scissor Bigram metric focused on the most uncomfortable scissor movements: Full Scissor Vertical (North↔South opposition), Full Scissor Squeeze (fingers moving inward), and Full Scissor Splay (fingers moving outward). Penalties scale proportionally to the key cost difference
+
+**hsb**: Half Scissor Bigram metric focused on less severe scissor movements: Half Scissor (diagonal lateral+vertical movements) and Lateral (lateral+center movements). Penalties scale proportionally to the key cost difference
+
 **symmetric_handswitches**: Rewards using symmetrical key positions when switching between hands, but only for center, south, and index/middle north keys
 
 **movement_pattern**: Assigns costs to finger transitions within the same hand. If the movement is center key to center key or south key to south key, there is no penalty
@@ -88,7 +112,7 @@ METRICS_DESCRIPTION = """## Metrics Description
 def get_corpus_paths(corpus_name: str) -> tuple[Path, Path, Path]:
     """Get corpus directory and ngrams file paths."""
     script_dir = Path(__file__).parent
-    project_root = script_dir.parent
+    project_root = script_dir.parent.parent
     corpus_dir = project_root / "ngrams" / corpus_name
     ngrams_file = corpus_dir / "2-grams.txt"
     return project_root, corpus_dir, ngrams_file
@@ -120,7 +144,7 @@ def validate_corpus(corpus_name: str) -> str:
     if not corpus_dir.exists():
         ngrams_dir = project_root / "ngrams"
         available_corpora = (
-            [d.name for d in ngrams_dir.iterdir() if d.is_dir()]
+            sorted([d.name for d in ngrams_dir.iterdir() if d.is_dir()])
             if ngrams_dir.exists()
             else []
         )
@@ -137,161 +161,59 @@ def validate_corpus(corpus_name: str) -> str:
 # =============================================================================
 
 
-def extract_worst_bigrams(message: str) -> list[tuple[str, float]]:
-    """Extract bigram pairs from 'Worst:' section of message."""
-    if "Worst:" not in message:
-        return []
-
-    worst_section = message.split("Worst:")[1]
-    if ";" in worst_section:
-        worst_section = worst_section.split(";")[0]
-
-    pattern = r"(.{2}) \(\s*([0-9.]+)%\)"
-    matches = re.findall(pattern, worst_section)
-    return [(bigram, float(percent)) for bigram, percent in matches]
-
-
-def extract_scissors_bigrams(message: str) -> list[tuple[str, str, float]]:
-    """Extract bigram pairs from Scissors category format.
-
-    Returns list of (category, bigram, percent) tuples.
-    Example input: "Full Vertical: th (5.2%), er (3.1%); Squeeze: in (4.5%)"
+def drop_low_freq_entries(
+    message: str, threshold: float = DEFAULT_FREQ_THRESHOLD
+) -> str:
     """
-    results = []
-    # Split by semicolon to get each category section
-    sections = message.split(";")
-
-    for section in sections:
-        if ":" not in section:
+    Remove entries whose frequency (right side of '|') is < threshold (%).
+    Preserves tokens that include punctuation such as commas (e.g., 'l,', 'o,', 'a.').
+    Drops empty sections.
+    """
+    out_sections = []
+    for raw_sec in (s.strip() for s in message.split(";")):
+        if not raw_sec:
             continue
+        m = SECTION_RE.match(raw_sec)
+        if m:
+            label, body = m.group(1).strip(), m.group(2)
+        else:
+            label, body = None, raw_sec
 
-        category, bigrams_str = section.split(":", 1)
-        category = category.strip()
+        kept = []
+        for em in ENTRY_RE.finditer(body):
+            token = em.group("token").strip()  # keep punctuation like ',' or '.'
+            cost = em.group("cost")
+            freq = float(em.group("freq"))
+            if freq >= threshold:
+                kept.append(f"{token} {cost}%|{em.group('freq')}%")
 
-        # Extract bigrams and percentages from this category
-        # Note: pattern allows for optional space after opening paren
-        pattern = r"(.{2}) \(\s*([0-9.]+)%\)"
-        matches = re.findall(pattern, bigrams_str)
+        if kept:
+            out_sections.append(
+                f"{label}: {', '.join(kept)}" if label else ", ".join(kept)
+            )
 
-        for bigram, percent in matches:
-            results.append((category, bigram, float(percent)))
-
-    return results
-
-
-def add_frequencies(message: str, bigram_frequencies: dict[str, float]) -> str:
-    """Enhance Scissoring and SFB messages with frequency data."""
-    # Check if this is a Scissors message (has category format)
-    if any(
-        cat in message
-        for cat in ["Full Vertical:", "Squeeze:", "Splay:", "Half:", "Lateral:"]
-    ):
-        return add_frequencies_scissors(message, bigram_frequencies)
-
-    worst_bigrams = extract_worst_bigrams(message)
-    if not worst_bigrams or "Worst:" not in message:
-        return message
-
-    # Process all bigrams - keep only those with freq >= 0.01%
-    enhanced_parts = []
-    for bigram, percent in worst_bigrams:
-        freq = bigram_frequencies.get(bigram, 0)
-        if freq >= 0.01:
-            # Keep bigrams with sufficient frequency
-            enhanced_parts.append((bigram, percent, freq))
-        # Skip all bigrams below threshold or not found
-
-    # Sort by frequency descending
-    enhanced_parts.sort(key=lambda x: -x[2])
-
-    # Build the enhanced message
-    formatted_parts = []
-    for bigram, percent, freq in enhanced_parts:
-        freq_str = f"{freq:.2f}%".rstrip("0").rstrip(".")
-        formatted_parts.append(f"{bigram} ({percent}%, freq: {freq_str})")
-
-    if not formatted_parts:
-        return message
-
-    before_worst = message.split("Worst:")[0]
-    enhanced_message = f"{before_worst}Worst: {', '.join(formatted_parts)}"
-
-    if ";" in message:
-        after_semicolon = message.split(";", 1)[1]
-        enhanced_message += ";" + after_semicolon
-
-    return enhanced_message
-
-
-def add_frequencies_scissors(message: str, bigram_frequencies: dict[str, float]) -> str:
-    """Enhance Scissors category messages with frequency data."""
-    scissors_bigrams = extract_scissors_bigrams(message)
-    if not scissors_bigrams:
-        return message
-
-    # Group by category
-    from collections import defaultdict
-
-    categories = defaultdict(list)
-
-    for category, bigram, percent in scissors_bigrams:
-        freq = bigram_frequencies.get(bigram, 0)
-        if freq >= 0.01:  # Only keep bigrams with sufficient frequency
-            categories[category].append((bigram, percent, freq))
-
-    category_parts = []
-    for category in ["Full Vertical", "Squeeze", "Splay", "Half", "Lateral"]:
-        if category in categories:
-            # Sort by frequency descending
-            categories[category].sort(key=lambda x: -x[2])
-
-            bigram_strs = []
-            for bigram, percent, freq in categories[category]:
-                freq_str = f"{freq:.2f}%".rstrip("0").rstrip(".")
-                bigram_strs.append(f"{bigram} ({percent:.2f}%, freq: {freq_str})")
-
-            category_parts.append(f"{category}: {', '.join(bigram_strs)}")
-
-    return "; ".join(category_parts) if category_parts else message
+    return "; ".join(out_sections)
 
 
 def clean_worst_message(message: str, metric_name: str = "") -> str:
-    """Clean message by removing 'Worst non-fixed' part and unnecessary prefixes."""
-    # Remove ";  Worst non-fixed: ..." part only if it exists (note: two spaces)
-    if ";  Worst non-fixed:" in message:
-        message = message.split(";  Worst non-fixed:")[0]
-
+    """Clean message by removing unnecessary prefixes."""
     prefixes = ["Finger loads % (no thumb): ", "Hand loads % (no thumb): ", "Worst: "]
     for prefix in prefixes:
         message = message.replace(prefix, "")
 
     # Format percentages and other numbers
-    decimals = 2
     if metric_name in ["Hand Disbalance", "Finger Balance"]:
-        decimals = 1
+        decimals = BALANCE_METRIC_DECIMALS
         message = re.sub(
             r"(\d+\.\d+)(?!%\))", lambda m: f"{float(m.group(1)):.{decimals}f}", message
         )
     else:
-        decimals = 2
+        decimals = DEFAULT_METRIC_DECIMALS
         message = re.sub(
             r"(\d+\.\d+)%,", lambda m: f"{float(m.group(1)):.{decimals}f}%,", message
         )
 
     return message.strip()
-
-
-def format_frequencies(message: str) -> str:
-    """Format frequencies to 3 decimals while removing trailing zeros."""
-
-    def format_freq(match):
-        freq_value = float(match.group(1))
-        formatted = f"{freq_value:.3f}".rstrip("0").rstrip(".")
-        if "." not in formatted:
-            formatted += ".0"
-        return f"freq: {formatted}"
-
-    return re.sub(r"freq: (\d+\.?\d*)", format_freq, message)
 
 
 # =============================================================================
@@ -316,11 +238,12 @@ def process_layout_metrics(
                     "SFB",
                     "Manual Bigram Penalty",
                     "Scissors",
+                    "FSB",
+                    "HSB",
                 ]
                 and bigram_frequencies
             ):
-                message = add_frequencies(message, bigram_frequencies)
-                message = format_frequencies(message)
+                message = drop_low_freq_entries(message)
 
             metrics_data[core["name"]] = {
                 "cost": metric_cost["weighted_cost"],
@@ -487,6 +410,26 @@ def parse_diagrams(txt_file: Path, output_dir: Path) -> list[tuple[str, str]]:
 
 
 # =============================================================================
+# MARKDOWN HELPERS
+# =============================================================================
+
+
+def generate_anchor_id(text: str) -> str:
+    """Generate a markdown anchor ID from text (GitHub-flavored markdown style)."""
+    # Convert to lowercase
+    anchor = text.lower()
+    # Replace spaces with hyphens
+    anchor = anchor.replace(" ", "-")
+    # Remove special characters, keeping only alphanumeric, hyphens, and underscores
+    anchor = re.sub(r"[^a-z0-9\-_]", "", anchor)
+    # Remove consecutive hyphens
+    anchor = re.sub(r"-+", "-", anchor)
+    # Strip leading/trailing hyphens
+    anchor = anchor.strip("-")
+    return anchor
+
+
+# =============================================================================
 # COLUMN FILTERING
 # =============================================================================
 
@@ -512,12 +455,14 @@ def filter_empty_columns(records: list[dict]) -> list[str]:
 
 def export_csv(records: list[dict], output_file: Path) -> None:
     """Export parsed layout records to CSV file."""
+    if not records:
+        return
+
     filtered_headers = filter_empty_columns(records)
     with open(output_file, "w", newline="", encoding="utf-8") as f:
-        writer = csv.writer(f)
-        writer.writerow(filtered_headers)
-        for rec in records:
-            writer.writerow([rec.get(h, "") for h in filtered_headers])
+        writer = csv.DictWriter(f, fieldnames=filtered_headers, extrasaction="ignore")
+        writer.writeheader()
+        writer.writerows(records)
 
 
 def export_markdown(
@@ -534,7 +479,7 @@ def export_markdown(
         toc_items = (
             ["- [Summary](#summary)", "- [Layout Details](#layout-details)"]
             + [
-                f"  - [{rec['Layout']}](#{rec['Layout'].replace(' ', '_').lower()})"
+                f"  - [{rec['Layout']}](#{generate_anchor_id(rec['Layout'])})"
                 for rec in records
             ]
             + ["- [Metrics Description](#metrics-description)"]
@@ -596,11 +541,11 @@ def export_markdown(
         for rec in records:
             layout = rec["Layout"]
             svg_cell = (
-                f'<img src="svgs/{Path(layout_to_svg[layout]).name}" width="600">'
+                f'<img src="svgs/{quote(Path(layout_to_svg[layout]).name)}" width="600">'
                 if layout in layout_to_svg
                 else ""
             )
-            layout_link = f"[{layout}](#{layout.replace(' ', '_').lower()})"
+            layout_link = f"[{layout}](#{generate_anchor_id(layout)})"
             row_cells = (
                 [svg_cell]
                 + [str(rec.get(metric, "")) for metric in metrics]
@@ -612,6 +557,12 @@ def export_markdown(
         for rec in records:
             layout = rec["Layout"]
             f.write(f"### {layout}\n\n")
+
+            # Add SVG image if available
+            if layout in layout_to_svg:
+                svg_filename = Path(layout_to_svg[layout]).name
+                f.write(f'<img src="svgs/{quote(svg_filename)}" width="800">\n\n')
+
             f.write(f"**Total Cost:** {rec.get('Total Cost', '')}\n\n")
             f.write("#### All Metrics\n\n")
 

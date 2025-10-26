@@ -7,8 +7,13 @@
 //! Penalties scale proportionally with the absolute cost difference between keys:
 //!
 //! ```
-//! penalty = factor × |cost_from - cost_to|
+//! penalty = scissor_factor × |cost_from - cost_to| × finger_factor × freq_multiplier
 //! ```
+//!
+//! Where:
+//! - `scissor_factor`: Movement-type factor (vertical/squeeze/splay)
+//! - `finger_factor`: Max of the two fingers' factors (weaker finger dominates)
+//! - `freq_multiplier`: Optional high-frequency bigram penalty
 //!
 //! Key costs are defined in the keyboard configuration (`key_costs` section) and represent
 //! the difficulty of reaching each position. Factors are configured per movement type in
@@ -26,6 +31,7 @@
 //! - `vertical_factor`: Multiplier for vertical scissors
 //! - `squeeze_factor`: Multiplier for squeeze motion
 //! - `splay_factor`: Multiplier for splay motion
+//! - `finger_factors`: Per-finger multipliers (e.g., pinky scissors are worse than index)
 //! - `critical_bigram_fraction`: Frequency threshold for high-penalty bigrams (optional)
 //! - `critical_bigram_factor`: Multiplier for high-frequency bigrams (optional)
 
@@ -34,9 +40,10 @@ use super::{
     BigramMetric,
 };
 
+use ahash::AHashMap;
 use colored::Colorize;
 use keyboard_layout::{
-    key::Direction::*,
+    key::{Direction::*, Finger},
     layout::{LayerKey, Layout},
 };
 
@@ -75,6 +82,8 @@ pub struct Parameters {
     pub squeeze_factor: f64,
     /// Base cost factor for Splay (fingers moving outward)
     pub splay_factor: f64,
+    /// Per-finger multipliers (e.g., pinky: 1.5, index: 0.75)
+    pub finger_factors: Option<AHashMap<Finger, f64>>,
     /// Minimum relative bigram frequency to apply heavy penalty (as fraction, e.g., 0.0004 = 0.04%)
     pub critical_bigram_fraction: Option<f64>,
     /// Multiplier for bigrams above critical_bigram_fraction (e.g., 100.0 = 100x penalty)
@@ -146,6 +155,7 @@ impl Fsb {
                 "FSB",
                 params.critical_bigram_fraction,
                 params.critical_bigram_factor,
+                params.finger_factors.clone(),
                 compute,
             ),
         }

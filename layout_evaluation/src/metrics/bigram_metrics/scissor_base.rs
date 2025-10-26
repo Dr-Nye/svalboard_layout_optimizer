@@ -3,10 +3,15 @@
 //! This module provides generic infrastructure for scissor metrics that:
 //! - Track worst bigrams by category (e.g., Vertical, Squeeze, Diagonal)
 //! - Apply optional frequency-based multipliers for critical bigrams
+//! - Apply optional finger-specific multipliers
 //! - Format output with consistent whitespace visualization and percentage display
 use super::BigramMetric;
 use crate::metrics::format_utils::{format_percentages, visualize_whitespace};
-use keyboard_layout::layout::{LayerKey, Layout};
+use ahash::AHashMap;
+use keyboard_layout::{
+    key::Finger,
+    layout::{LayerKey, Layout},
+};
 use ordered_float::OrderedFloat;
 use priority_queue::DoublePriorityQueue;
 use std::{collections::HashMap, env, fmt::Debug, hash::Hash};
@@ -123,6 +128,7 @@ pub struct ScissorMetric<C: ScissorCategory, T: ScissorCompute<C>> {
     name: &'static str,
     critical_bigram_fraction: Option<f64>,
     critical_bigram_factor: Option<f64>,
+    finger_factors: Option<AHashMap<Finger, f64>>,
     compute: T,
     _phantom: std::marker::PhantomData<C>,
 }
@@ -132,12 +138,14 @@ impl<C: ScissorCategory, T: ScissorCompute<C>> ScissorMetric<C, T> {
         name: &'static str,
         critical_bigram_fraction: Option<f64>,
         critical_bigram_factor: Option<f64>,
+        finger_factors: Option<AHashMap<Finger, f64>>,
         compute: T,
     ) -> Self {
         Self {
             name,
             critical_bigram_fraction,
             critical_bigram_factor,
+            finger_factors,
             compute,
             _phantom: std::marker::PhantomData,
         }
@@ -155,6 +163,19 @@ impl<C: ScissorCategory, T: ScissorCompute<C>> ScissorMetric<C, T> {
             } else {
                 1.0
             }
+        } else {
+            1.0
+        }
+    }
+
+    /// Calculate finger multiplier based on both fingers involved
+    /// Uses the maximum factor since the weaker finger dominates comfort
+    #[inline]
+    fn finger_multiplier(&self, k1: &LayerKey, k2: &LayerKey) -> f64 {
+        if let Some(ref factors) = self.finger_factors {
+            let factor1 = factors.get(&k1.key.finger).copied().unwrap_or(1.0);
+            let factor2 = factors.get(&k2.key.finger).copied().unwrap_or(1.0);
+            factor1.max(factor2)
         } else {
             1.0
         }
@@ -194,7 +215,8 @@ impl<C: ScissorCategory + 'static, T: ScissorCompute<C> + 'static> BigramMetric
         match self.bigram_cost(k1, k2, layout) {
             Some(base_cost) => {
                 let frequency_multiplier = self.frequency_multiplier(weight, total_weight);
-                Some(weight * base_cost * frequency_multiplier)
+                let finger_multiplier = self.finger_multiplier(k1, k2);
+                Some(weight * base_cost * finger_multiplier * frequency_multiplier)
             }
             None => Some(0.0),
         }
