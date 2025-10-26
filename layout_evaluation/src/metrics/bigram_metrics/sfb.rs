@@ -44,7 +44,7 @@ pub struct Parameters {
     pub ignore_thumbs: bool,
     pub exclude_modifiers: Option<bool>,
     pub costs: AHashMap<Direction, AHashMap<Direction, f64>>,
-    pub finger_factors: AHashMap<Finger, f64>,
+    pub finger_factors: Option<AHashMap<Finger, f64>>,
     /// Minimum relative bigram frequency to apply heavy penalty (as fraction, e.g., 0.0004 = 0.04%)
     pub critical_bigram_fraction: Option<f64>,
     /// Multiplier for bigrams above critical_bigram_fraction (e.g., 100.0 = 100x penalty)
@@ -57,7 +57,7 @@ pub struct Sfb {
     ignore_thumbs: bool,
     exclude_modifiers: bool,
     costs: AHashMap<Direction, AHashMap<Direction, f64>>,
-    finger_factors: AHashMap<Finger, f64>,
+    finger_factors: Option<AHashMap<Finger, f64>>,
     critical_bigram_fraction: Option<f64>,
     critical_bigram_factor: Option<f64>,
 }
@@ -126,7 +126,11 @@ impl BigramMetric for Sfb {
             .copied()
             .unwrap_or(self.default_cost);
 
-        let finger_multiplier = self.finger_factors.get(&finger).copied().unwrap_or(1.0);
+        let finger_multiplier = self
+            .finger_factors
+            .as_ref()
+            .and_then(|factors| factors.get(&finger).copied())
+            .unwrap_or(1.0);
 
         // Apply frequency-based multiplier if configured
         let frequency_multiplier = if let (Some(threshold), Some(factor)) =
