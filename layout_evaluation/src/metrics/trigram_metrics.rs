@@ -16,6 +16,9 @@ pub mod oxey_inward_rolls;
 pub mod oxey_onehands;
 pub mod oxey_outward_rolls;
 pub mod oxey_redirects;
+mod redirect_base; // Private module - shared base for redirect metrics
+pub mod redirects;
+pub mod weak_redirect;
 pub mod secondary_bigrams;
 pub mod sfs;
 pub mod trigram_finger_repeats;

@@ -65,6 +65,8 @@ pub struct MetricParameters {
     pub no_handswitch_in_trigram: Option<WeightedParams<no_handswitch_in_trigram::Parameters>>,
     pub secondary_bigrams: Option<WeightedParams<secondary_bigrams::Parameters>>,
     pub sfs: Option<WeightedParams<sfs::Parameters>>,
+    pub redirects: Option<WeightedParams<redirects::Parameters>>,
+    pub weak_redirect: Option<WeightedParams<weak_redirect::Parameters>>,
     pub trigram_finger_repeats: Option<WeightedParams<trigram_finger_repeats::Parameters>>,
     pub trigram_rolls: Option<WeightedParams<trigram_rolls::Parameters>>,
 
@@ -178,6 +180,8 @@ impl Evaluator {
             NoHandswitchInTrigram
         );
         add_metric!(trigram_metric, sfs, Sfs);
+        add_metric!(trigram_metric, redirects, Redirects);
+        add_metric!(trigram_metric, weak_redirect, WeakRedirect);
         //add_metric!(trigram_metric, trigram_finger_repeats, TrigramFingerRepeats);
         //add_metric!(trigram_metric, trigram_rolls, TrigramRolls);
         //add_metric!(
