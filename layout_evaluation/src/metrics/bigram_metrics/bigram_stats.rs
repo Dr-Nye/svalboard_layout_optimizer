@@ -123,21 +123,66 @@ impl BigramMetric for BigramStats {
         let diagonal_percentage = crate::metrics::to_percentage(diagonal_weight, total_weight);
         let lateral_percentage = crate::metrics::to_percentage(lateral_weight, total_weight);
 
-        let message = format!(
-            "{}: {}%, {}: {}%, {}: {}%, {}: {}%, {}: {}%, {}: {}%",
-            "SFB".underline(),
-            format_percentage(sfb_percentage),
-            "Vertical".underline(),
-            format_percentage(full_vertical_percentage),
-            "Squeeze".underline(),
-            format_percentage(squeeze_percentage),
-            "Splay".underline(),
-            format_percentage(splay_percentage),
-            "Diagonal".underline(),
-            format_percentage(diagonal_percentage),
-            "Lateral".underline(),
-            format_percentage(lateral_percentage)
-        );
+        // Build message with category groups separated by semicolons
+        let mut groups = Vec::new();
+
+        // SFB group
+        if sfb_percentage > 0.0 {
+            groups.push(format!(
+                "{}: {}%",
+                "SFB".underline(),
+                format_percentage(sfb_percentage)
+            ));
+        }
+
+        // Full Scissors group (Vertical, Squeeze, Splay)
+        let mut full_scissors = Vec::new();
+        if full_vertical_percentage > 0.0 {
+            full_scissors.push(format!(
+                "{}: {}%",
+                "Vertical".underline(),
+                format_percentage(full_vertical_percentage)
+            ));
+        }
+        if squeeze_percentage > 0.0 {
+            full_scissors.push(format!(
+                "{}: {}%",
+                "Squeeze".underline(),
+                format_percentage(squeeze_percentage)
+            ));
+        }
+        if splay_percentage > 0.0 {
+            full_scissors.push(format!(
+                "{}: {}%",
+                "Splay".underline(),
+                format_percentage(splay_percentage)
+            ));
+        }
+        if !full_scissors.is_empty() {
+            groups.push(full_scissors.join(", "));
+        }
+
+        // Half Scissors group (Diagonal, Lateral)
+        let mut half_scissors = Vec::new();
+        if diagonal_percentage > 0.0 {
+            half_scissors.push(format!(
+                "{}: {}%",
+                "Diagonal".underline(),
+                format_percentage(diagonal_percentage)
+            ));
+        }
+        if lateral_percentage > 0.0 {
+            half_scissors.push(format!(
+                "{}: {}%",
+                "Lateral".underline(),
+                format_percentage(lateral_percentage)
+            ));
+        }
+        if !half_scissors.is_empty() {
+            groups.push(half_scissors.join(", "));
+        }
+
+        let message = groups.join("; ");
 
         // Return 0 cost since this is informational only
         (0.0, Some(message))
