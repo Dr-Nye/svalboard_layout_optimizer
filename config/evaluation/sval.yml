@@ -1,4 +1,13 @@
 metrics:
+  hand_disbalance:
+    enabled: true
+    weight: 25.0
+    normalization:
+      type: fixed
+      value: 1.0
+    params:
+      null: null
+
   finger_balance:
     enabled: true
     weight: 50.0
@@ -20,15 +29,6 @@ metrics:
         Ring: 1.2
         Middle: 1.0
         Index: 0.8
-
-  hand_disbalance:
-    enabled: true
-    weight: 25.0
-    normalization:
-      type: fixed
-      value: 1.0
-    params:
-      null: null
 
   # Each keystroke incurs a cost (defined in the keyboard's layout config)
   key_costs:
@@ -54,6 +54,20 @@ metrics:
   # =============================================================================
   # Bigram metrics
   # =============================================================================
+
+  bigram_stats:
+    enabled: true
+    weight: 0.0
+    normalization:
+      type: fixed
+      value: 1.0
+    params:
+      ignore_thumbs: true
+      ignore_modifiers: true
+      # Ignore specific SFB movements
+      # Format: list of [from_direction, to_direction] pairs
+      ignore_movements:
+        - [Center, South]
 
   sfb:
     enabled: true
@@ -113,20 +127,6 @@ metrics:
       # High-frequency roll penalty
       critical_bigram_fraction: 0.0005
       critical_bigram_factor: 100.0
-
-  bigram_stats:
-    enabled: true
-    weight: 0.0
-    normalization:
-      type: fixed
-      value: 1.0
-    params:
-      ignore_thumbs: true
-      ignore_modifiers: true
-      # Ignore specific SFB movements
-      # Format: list of [from_direction, to_direction] pairs
-      ignore_movements:
-        - [Center, South]
 
   fsb:
     enabled: true

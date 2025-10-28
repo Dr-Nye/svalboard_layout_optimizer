@@ -150,21 +150,20 @@ impl Evaluator {
         add_metric!(layout_metric, similar_letter_groups, SimilarLetterGroups);
 
         // unigram metrics
-        add_metric!(unigram_metric, finger_balance, FingerBalance);
-        add_metric!(unigram_metric, position_penalties, PositionPenalties);
         add_metric!(unigram_metric, hand_disbalance, HandDisbalance);
-        //add_metric!(unigram_metric, row_loads, RowLoads);
-        //add_metric!(unigram_metric, modifier_usage, ModifierUsage);
+        add_metric!(unigram_metric, finger_balance, FingerBalance);
         add_metric!(unigram_metric, key_costs, KeyCost);
+        add_metric!(unigram_metric, position_penalties, PositionPenalties);
+        //add_metric!(unigram_metric, modifier_usage, ModifierUsage);
 
         // bigram metrics
-        add_metric!(bigram_metric, sfb, Sfb);
         add_metric!(bigram_metric, bigram_stats, BigramStats);
+        add_metric!(bigram_metric, sfb, Sfb);
         add_metric!(bigram_metric, fsb, Fsb);
         add_metric!(bigram_metric, hsb, Hsb);
         add_metric!(bigram_metric, finger_repeats, FingerRepeats);
-        add_metric!(bigram_metric, manual_bigram_penalty, ManualBigramPenalty);
         add_metric!(bigram_metric, movement_pattern, MovementPattern);
+        add_metric!(bigram_metric, manual_bigram_penalty, ManualBigramPenalty);
         //add_metric!(
         //    bigram_metric,
         //    no_handswitch_after_unbalancing_key,
@@ -174,14 +173,14 @@ impl Evaluator {
 
         // trigram_metrics
         add_metric!(trigram_metric, trigram_stats, TrigramStats);
+        add_metric!(trigram_metric, sfs, Sfs);
+        add_metric!(trigram_metric, redirects, Redirects);
+        add_metric!(trigram_metric, weak_redirect, WeakRedirect);
         add_metric!(
             trigram_metric,
             no_handswitch_in_trigram,
             NoHandswitchInTrigram
         );
-        add_metric!(trigram_metric, sfs, Sfs);
-        add_metric!(trigram_metric, redirects, Redirects);
-        add_metric!(trigram_metric, weak_redirect, WeakRedirect);
         //add_metric!(trigram_metric, trigram_finger_repeats, TrigramFingerRepeats);
         //add_metric!(trigram_metric, trigram_rolls, TrigramRolls);
         //add_metric!(
@@ -190,12 +189,12 @@ impl Evaluator {
         //    Irregularity,
         //    "add_bigram_metrics"
         //);
-        add_metric!(
-            trigram_metric,
-            secondary_bigrams,
-            SecondaryBigrams,
-            "add_bigram_metrics"
-        );
+        // add_metric!(
+        //     trigram_metric,
+        //     secondary_bigrams,
+        //     SecondaryBigrams,
+        //     "add_bigram_metrics"
+        // );
 
         //add_metric!(layout_metric, kla_same_finger_words, KLASameFingerWords);
         //add_metric!(layout_metric, kla_home_key_words, KLAHomeKeyWords);
