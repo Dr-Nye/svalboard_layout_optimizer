@@ -8,7 +8,7 @@ use super::{
 
 use colored::Colorize;
 use keyboard_layout::{
-    key::Finger,
+    key::{Direction, Finger},
     layout::{LayerKey, Layout},
 };
 
@@ -18,20 +18,20 @@ use serde::Deserialize;
 pub struct Parameters {
     pub ignore_thumbs: bool,
     pub ignore_modifiers: bool,
-    /// Exclude "good" SFBs like Center→South from the count (default: true)
-    #[serde(default = "default_exclude_center_south")]
-    pub exclude_center_south: bool,
+    /// List of SFB movements to ignore from the count (e.g., [[Center, South], [In, South]])
+    #[serde(default = "default_ignore_movements")]
+    pub ignore_movements: Vec<(Direction, Direction)>,
 }
 
-fn default_exclude_center_south() -> bool {
-    true
+fn default_ignore_movements() -> Vec<(Direction, Direction)> {
+    vec![]
 }
 
 #[derive(Clone, Debug)]
 pub struct BigramStats {
     ignore_thumbs: bool,
     ignore_modifiers: bool,
-    exclude_center_south: bool,
+    ignore_movements: Vec<(Direction, Direction)>,
 }
 
 /// Format a percentage with up to 2 meaningful decimal places (strips trailing zeros)
@@ -47,7 +47,7 @@ impl BigramStats {
         Self {
             ignore_thumbs: params.ignore_thumbs,
             ignore_modifiers: params.ignore_modifiers,
-            exclude_center_south: params.exclude_center_south,
+            ignore_movements: params.ignore_movements.clone(),
         }
     }
 
@@ -56,11 +56,12 @@ impl BigramStats {
             || (self.ignore_modifiers && key.is_modifier.is_some())
     }
 
-    /// Check if this is a Center→South same-finger movement (the "good" SFB)
-    fn is_center_south_sfb(&self, k1: &LayerKey, k2: &LayerKey) -> bool {
-        k1.key.matrix_position.0 == k2.key.matrix_position.0
-            && k1.key.matrix_position.1 == 2 // center row
-            && k2.key.matrix_position.1 == 3 // south row
+    /// Check if this SFB movement should be ignored from statistics
+    fn should_ignore_movement(&self, k1: &LayerKey, k2: &LayerKey) -> bool {
+        let dir_from = k1.key.direction;
+        let dir_to = k2.key.direction;
+
+        self.ignore_movements.contains(&(dir_from, dir_to))
     }
 }
 
@@ -97,8 +98,7 @@ impl BigramMetric for BigramStats {
 
             // Check for SFB
             if k1.key.hand == k2.key.hand && k1.key.finger == k2.key.finger {
-                // Exclude "good" Center→South SFBs if configured
-                if !self.exclude_center_south || !self.is_center_south_sfb(k1, k2) {
+                if !self.should_ignore_movement(k1, k2) {
                     sfb_weight += weight;
                 }
             }

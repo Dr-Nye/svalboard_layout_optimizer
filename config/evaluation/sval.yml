@@ -123,6 +123,10 @@ metrics:
     params:
       ignore_thumbs: true
       ignore_modifiers: true
+      # Ignore specific SFB movements
+      # Format: list of [from_direction, to_direction] pairs
+      ignore_movements:
+        - [Center, South]
 
   fsb:
     enabled: true
@@ -181,6 +185,10 @@ metrics:
     params:
       ignore_modifiers: true
       ignore_thumbs: true
+      # Track specific same-finger roll movements separately (e.g., [[Center, South], [In, South]])
+      # Format: list of [from_direction, to_direction] pairs
+      extra_roll_movements:
+        - [Center, South]
 
   weak_redirect:
     enabled: true
