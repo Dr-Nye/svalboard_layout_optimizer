@@ -172,10 +172,11 @@ The optimizer includes custom metrics optimized for the Svalboard's unique geome
 
 - **scissors**: Key-cost-based scissoring that identifies when adjacent fingers have mismatched effort (e.g., weak finger doing hard work while strong finger gets easy work). Uses the key costs defined in the keyboard configuration to calculate effort imbalances. Penalties scale proportionally with the absolute cost difference between keys and distinguish between movement types:
 
-  - **Full Scissor Vertical** (North↔South opposition)
-  - **Full Scissor Squeeze/Splay** (In↔Out lateral opposition, squeeze being more uncomfortable)
-  - **Half Scissor** (diagonal lateral+vertical movements)
-  - **Lateral Stretch** (lateral+center displacement)
+  - **Full Scissor Vertical**: Opposite vertical directions (North ↔ South)
+  - **Full Scissor Squeeze**: Fingers moving toward each other (In ↔ Out, inward motion)
+  - **Full Scissor Splay**: Fingers moving apart (In ↔ Out, outward motion)
+  - **Half Scissor Diagonal**: Lateral + Vertical - One finger moves laterally (In/Out), other vertically (North/South)
+  - **Half Scissor Lateral**: Lateral + Center - One finger moves laterally (In/Out), other presses Center
   - High-frequency scissors get additional penalty multiplier
 
 - **position_penalties**: Penalizes specific characters at specific matrix positions. Currently configured to:
