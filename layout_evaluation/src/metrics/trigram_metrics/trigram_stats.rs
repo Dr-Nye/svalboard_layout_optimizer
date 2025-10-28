@@ -25,12 +25,12 @@ enum TrigramCategory {
 pub struct Parameters {
     pub ignore_modifiers: bool,
     pub ignore_thumbs: bool,
-    /// List of same-finger roll movements to track separately (e.g., [[Center, South], [In, South]])
-    #[serde(default = "default_extra_roll_movements")]
-    pub extra_roll_movements: Vec<(Direction, Direction)>,
+    /// List of same-finger movements to track separately within bigram rolls (e.g., [[Center, South], [In, South]])
+    #[serde(default = "default_same_finger_rolls")]
+    pub same_finger_rolls: Vec<(Direction, Direction)>,
 }
 
-fn default_extra_roll_movements() -> Vec<(Direction, Direction)> {
+fn default_same_finger_rolls() -> Vec<(Direction, Direction)> {
     vec![]
 }
 
@@ -38,7 +38,7 @@ fn default_extra_roll_movements() -> Vec<(Direction, Direction)> {
 pub struct TrigramStats {
     ignore_modifiers: bool,
     ignore_thumbs: bool,
-    extra_roll_movements: Vec<(Direction, Direction)>,
+    same_finger_rolls: Vec<(Direction, Direction)>,
 }
 
 impl TrigramStats {
@@ -46,7 +46,7 @@ impl TrigramStats {
         Self {
             ignore_modifiers: params.ignore_modifiers,
             ignore_thumbs: params.ignore_thumbs,
-            extra_roll_movements: params.extra_roll_movements.clone(),
+            same_finger_rolls: params.same_finger_rolls.clone(),
         }
     }
 
@@ -55,9 +55,9 @@ impl TrigramStats {
             || (self.ignore_modifiers && key.is_modifier.is_some())
     }
 
-    /// Check if this same-finger movement matches any configured extra roll movements
+    /// Check if this same-finger movement matches any configured same-finger rolls
     /// Returns Some((Direction, Direction)) if it matches, None otherwise
-    fn check_extra_roll_movement(
+    fn check_same_finger_roll(
         &self,
         k1: &LayerKey,
         k2: &LayerKey,
@@ -65,7 +65,7 @@ impl TrigramStats {
         let dir_from = k1.key.direction;
         let dir_to = k2.key.direction;
 
-        for &(from, to) in &self.extra_roll_movements {
+        for &(from, to) in &self.same_finger_rolls {
             if dir_from == from && dir_to == to {
                 return Some((from, to));
             }
@@ -130,7 +130,7 @@ impl TrigramStats {
 
         let (kr1, kr2) = if first_roll { (k1, k2) } else { (k2, k3) };
 
-        // Same-finger movements are not considered rolls (handled separately as extra_roll_movements)
+        // Same-finger movements are not considered rolls (handled separately as same_finger_rolls)
         if kr1.key.finger == kr2.key.finger {
             return (false, false);
         }
@@ -281,7 +281,7 @@ impl TrigramMetric for TrigramStats {
         _layout: &Layout,
     ) -> (f64, Option<String>) {
         let mut category_weights: HashMap<TrigramCategory, f64> = HashMap::new();
-        let mut extra_roll_weights: HashMap<(Direction, Direction), f64> = HashMap::new();
+        let mut same_finger_roll_weights: HashMap<(Direction, Direction), f64> = HashMap::new();
         let mut weak_redirects_weight = 0.0;
         let mut sfs_weight = 0.0;
         let mut valid_trigrams_weight = 0.0;
@@ -310,11 +310,11 @@ impl TrigramMetric for TrigramStats {
 
             valid_trigrams_weight += weight;
 
-            // Check if this trigram contains a same-finger bigram that matches extra_roll_movements
+            // Check if this trigram contains a same-finger bigram that matches same_finger_rolls
             if let Some((kb1, kb2)) = self.extract_bigram_pair(k1, k2, k3) {
                 if kb1.key.hand == kb2.key.hand && kb1.key.finger == kb2.key.finger {
-                    if let Some(movement) = self.check_extra_roll_movement(kb1, kb2) {
-                        *extra_roll_weights.entry(movement).or_insert(0.0) += weight;
+                    if let Some(movement) = self.check_same_finger_roll(kb1, kb2) {
+                        *same_finger_roll_weights.entry(movement).or_insert(0.0) += weight;
                     }
                 }
             }
@@ -345,78 +345,88 @@ impl TrigramMetric for TrigramStats {
         let other_percentage = to_pct(get_weight(TrigramCategory::Other));
         let sfs_percentage = crate::metrics::to_percentage(sfs_weight, total_trigrams_weight);
 
-        // Calculate total bigram roll weight (including extra roll movements)
-        let extra_rolls_total: f64 = extra_roll_weights.values().sum();
+        // Calculate total bigram roll weight (including same-finger rolls)
+        let same_finger_rolls_total: f64 = same_finger_roll_weights.values().sum();
         let total_bigram_rolls_weight = get_weight(TrigramCategory::BigramRollIn)
             + get_weight(TrigramCategory::BigramRollOut)
-            + extra_rolls_total;
+            + same_finger_rolls_total;
         let total_bigram_rolls_percentage = to_pct(total_bigram_rolls_weight);
 
-        // Build message with only non-zero statistics
-        let mut parts = Vec::new();
+        // Build message with category groups separated by semicolons
+        let mut groups = Vec::new();
 
-        // Always show total bigram roll
-        parts.push(format!(
+        // 2-Roll group
+        let mut roll_2_parts = Vec::new();
+        roll_2_parts.push(format!(
             "{}: {:.1}%",
-            "Total bigram roll".underline(),
+            "2-Roll Total".underline(),
             total_bigram_rolls_percentage
         ));
 
         if bigram_inward_percentage > 0.0 {
-            parts.push(format!(
+            roll_2_parts.push(format!(
                 "{}: {:.1}%",
-                "Bigram roll in".underline(),
+                "2-Roll In".underline(),
                 bigram_inward_percentage
             ));
         }
 
         if bigram_outward_percentage > 0.0 {
-            parts.push(format!(
+            roll_2_parts.push(format!(
                 "{}: {:.1}%",
-                "Bigram roll out".underline(),
+                "2-Roll Out".underline(),
                 bigram_outward_percentage
             ));
         }
 
-        // Add extra roll movements
-        for ((dir_from, dir_to), weight) in extra_roll_weights.iter() {
+        // Add same-finger roll movements to 2-Roll group
+        for ((dir_from, dir_to), weight) in same_finger_roll_weights.iter() {
             let percentage = to_pct(*weight);
             if percentage > 0.0 {
-                let movement_label = format!("{:?}→{:?}", dir_from, dir_to);
-                parts.push(format!(
+                let movement_label = format!("2-Roll {:?}→{:?}", dir_from, dir_to);
+                roll_2_parts.push(format!(
                     "{}: {:.1}%",
                     movement_label.underline(),
                     percentage
                 ));
             }
         }
+        groups.push(roll_2_parts.join(", "));
 
+        // 3-Roll group
+        let mut roll_3_parts = Vec::new();
         if roll_in_percentage > 0.0 {
-            parts.push(format!(
+            roll_3_parts.push(format!(
                 "{}: {:.1}%",
-                "Roll in".underline(),
+                "3-Roll In".underline(),
                 roll_in_percentage
             ));
         }
 
         if roll_out_percentage > 0.0 {
-            parts.push(format!(
+            roll_3_parts.push(format!(
                 "{}: {:.1}%",
-                "Roll out".underline(),
+                "3-Roll Out".underline(),
                 roll_out_percentage
             ));
         }
+        if !roll_3_parts.is_empty() {
+            groups.push(roll_3_parts.join(", "));
+        }
 
+        // Alt group
         if alternation_percentage > 0.0 {
-            parts.push(format!(
+            groups.push(format!(
                 "{}: {:.1}%",
                 "Alt".underline(),
                 alternation_percentage
             ));
         }
 
+        // Redirect group
+        let mut redirect_parts = Vec::new();
         if redirect_percentage > 0.0 {
-            parts.push(format!(
+            redirect_parts.push(format!(
                 "{}: {:.1}%",
                 "Redirect".underline(),
                 redirect_percentage
@@ -424,22 +434,27 @@ impl TrigramMetric for TrigramStats {
         }
 
         if weak_redirect_percentage > 0.0 {
-            parts.push(format!(
+            redirect_parts.push(format!(
                 "{}: {:.1}%",
                 "Weak redirect".underline(),
                 weak_redirect_percentage
             ));
         }
+        if !redirect_parts.is_empty() {
+            groups.push(redirect_parts.join(", "));
+        }
 
+        // Other group
         if other_percentage > 0.0 {
-            parts.push(format!("{}: {:.1}%", "Other".underline(), other_percentage));
+            groups.push(format!("{}: {:.1}%", "Other".underline(), other_percentage));
         }
 
+        // SFS group
         if sfs_percentage > 0.0 {
-            parts.push(format!("{}: {:.1}%", "SFS".underline(), sfs_percentage));
+            groups.push(format!("{}: {:.1}%", "SFS".underline(), sfs_percentage));
         }
 
-        let message = parts.join(", ");
+        let message = groups.join("; ");
 
         // Return 0 cost since this is informational only
         (0.0, Some(message))
