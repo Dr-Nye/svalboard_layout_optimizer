@@ -185,9 +185,9 @@ metrics:
     params:
       ignore_modifiers: true
       ignore_thumbs: true
-      # Track specific same-finger roll movements separately (e.g., [[Center, South], [In, South]])
+      # Track specific same-finger movements within bigram rolls (e.g., [[Center, South], [In, South]])
       # Format: list of [from_direction, to_direction] pairs
-      extra_roll_movements:
+      same_finger_rolls:
         - [Center, South]
 
   weak_redirect:
