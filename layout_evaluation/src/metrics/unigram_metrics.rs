@@ -92,7 +92,7 @@ pub trait UnigramMetric: Send + Sync + UnigramMetricClone + fmt::Debug {
                 .collect();
 
             if !worst_msgs.is_empty() {
-                msgs.push(format!("Worst unigrams: {}", worst_msgs.join(", ")))
+                msgs.push(worst_msgs.join(", "))
             }
 
             let msg = Some(msgs.join(";  "));

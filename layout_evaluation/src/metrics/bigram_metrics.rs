@@ -100,7 +100,7 @@ pub trait BigramMetric: Send + Sync + BigramMetricClone + fmt::Debug {
                 .collect();
 
             let msg = if !worst_msgs.is_empty() {
-                Some(format!("Worst: {}", worst_msgs.join(", ")))
+                Some(worst_msgs.join(", "))
             } else {
                 None
             };
