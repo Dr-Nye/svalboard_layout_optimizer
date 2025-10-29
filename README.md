@@ -143,7 +143,7 @@ The main metrics configuration is in [`config/evaluation/sval.yml`](config/evalu
 - **finger_balance**: Ensures optimal finger load distribution based on intended loads per finger
 - **hand_disbalance**: Maintains left-right hand balance
 - **key_costs**: Penalizes hard-to-reach keys based on position difficulty
-- **position_penalties**: Applies penalties when specific characters appear at specific positions. Configured here to restrict high-frequency double letters to comfortable positions (center/south)
+- **character_constraints**: Applies penalties when specific characters appear at specific positions. Configured here to restrict high-frequency double letters to comfortable positions (center/south)
 - **sfb**: Same Finger Bigram metric that evaluates same-finger bigram comfort with directional costs
 - **scissors**: Cost-based scissoring metric that penalizes adjacent finger movements with effort imbalances
 - **manual_bigram_penalty**: Penalizes specific uncomfortable bigrams (e.g., pinky same-key repeats)

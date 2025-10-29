@@ -43,7 +43,7 @@ pub struct MetricParameters {
     pub similar_letter_groups: Option<WeightedParams<similar_letter_groups::Parameters>>,
 
     pub finger_balance: Option<WeightedParams<finger_balance::Parameters>>,
-    pub position_penalties: Option<WeightedParams<position_penalties::Parameters>>,
+    pub character_constraints: Option<WeightedParams<character_constraints::Parameters>>,
     pub hand_disbalance: Option<WeightedParams<hand_disbalance::Parameters>>,
     pub row_loads: Option<WeightedParams<row_loads::Parameters>>,
     pub key_costs: Option<WeightedParams<key_costs::Parameters>>,
@@ -153,7 +153,7 @@ impl Evaluator {
         add_metric!(unigram_metric, hand_disbalance, HandDisbalance);
         add_metric!(unigram_metric, finger_balance, FingerBalance);
         add_metric!(unigram_metric, key_costs, KeyCost);
-        add_metric!(unigram_metric, position_penalties, PositionPenalties);
+        add_metric!(unigram_metric, character_constraints, CharacterConstraints);
         //add_metric!(unigram_metric, modifier_usage, ModifierUsage);
 
         // bigram metrics

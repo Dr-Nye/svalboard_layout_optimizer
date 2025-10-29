@@ -228,7 +228,7 @@ metrics:
       value: 1.0
     params:
       add_mirrored: true
-      # key positions as matrix positions and the corresponding costs
+      # key positions as matrix positions (from config/keyboard/sval.yml) and the corresponding costs
       # [from_position, to_position]: weight
       matrix_positions:
         # Finger repeats on same key
@@ -244,60 +244,25 @@ metrics:
         [[24, 2], [24, 2]]: 0.5 # right pinky east
         [[23, 3], [23, 3]]: 0.5 # right pinky south
 
-  position_penalties:
+  character_constraints:
     enabled: true
     weight: 1000.0
     normalization:
       type: weight_found
       value: 1
     params:
-      penalty_positions:
-        # CATEGORY 1: High-frequency double letters (l,e,s,o,t,r,h,n)
-        # Only allowed on center and south positions of all fingers (ring, middle, index, pinky)
+      costs:
+        # Format: Key positions as matrix positions (from config/keyboard/sval.yml) and the corresponding costs
+        # Syntax: [column, row]: cost_value
 
-        # CATEGORY 2: moderate-frequency double letters (f,p)
-        # Only allowed on center, south, and north positions of all fingers
+        # High-frequency double consonants (l,s,t,f,p,r)
+        # Only allowed on center and south positions of all fingers
 
-        # CATEGORY 3: Lower-frequency double letters (c,d,g,m)
-        # Only allowed on center, south, north, and favorable lateral positions of all fingers
-        # m is also allowed on favorable laterals
-        # Favorable lateral: left hand = east (toward center), right hand = west (toward center)
+        # Mid-frequency double consonants (m,c,n,g,d)
+        # Allowed on center and south, tolerated on strong fingers laterals, forbidden on north
 
-        # === CATEGORY 1 LETTERS ===
+        # === High-frequency double consonants ===
         l:
-          # Left pinky
-          [3, 2]: 10 # west
-          [1, 2]: 10 # east
-          [2, 1]: 10 # north
-          # Left ring
-          [6, 2]: 10 # west
-          [4, 2]: 10 # east
-          [5, 1]: 10 # north
-          # Left middle
-          [9, 2]: 10 # west
-          [7, 2]: 10 # east
-          [8, 1]: 10 # north
-          # Left index
-          [10, 2]: 10 # east
-          [12, 2]: 10 # west
-          [11, 1]: 10 # north
-          # Right index
-          [13, 2]: 10 # west
-          [15, 2]: 10 # east
-          [14, 1]: 10 # north
-          # Right middle
-          [16, 2]: 10 # west
-          [18, 2]: 10 # east
-          [17, 1]: 10 # north
-          # Right ring
-          [19, 2]: 10 # west
-          [21, 2]: 10 # east
-          [20, 1]: 10 # north
-          # Right pinky
-          [22, 2]: 10 # west
-          [24, 2]: 10 # east
-          [23, 1]: 10 # north
-        e:
           # Left pinky
           [3, 2]: 10 # west
           [1, 2]: 10 # east
@@ -363,39 +328,6 @@ metrics:
           [22, 2]: 10 # west
           [24, 2]: 10 # east
           [23, 1]: 10 # north
-        o:
-          # Left pinky
-          [3, 2]: 10 # west
-          [1, 2]: 10 # east
-          [2, 1]: 10 # north
-          # Left ring
-          [6, 2]: 10 # west
-          [4, 2]: 10 # east
-          [5, 1]: 10 # north
-          # Left middle
-          [9, 2]: 10 # west
-          [7, 2]: 10 # east
-          [8, 1]: 10 # north
-          # Left index
-          [10, 2]: 10 # east
-          [12, 2]: 10 # west
-          [11, 1]: 10 # north
-          # Right index
-          [13, 2]: 10 # west
-          [15, 2]: 10 # east
-          [14, 1]: 10 # north
-          # Right middle
-          [16, 2]: 10 # west
-          [18, 2]: 10 # east
-          [17, 1]: 10 # north
-          # Right ring
-          [19, 2]: 10 # west
-          [21, 2]: 10 # east
-          [20, 1]: 10 # north
-          # Right pinky
-          [22, 2]: 10 # west
-          [24, 2]: 10 # east
-          [23, 1]: 10 # north
         t:
           # Left pinky
           [3, 2]: 10 # west
@@ -426,48 +358,9 @@ metrics:
           [21, 2]: 10 # east
           [20, 1]: 10 # north
           # Right pinky
-          # [23, 2]: 10 # center
-          # [23, 3]: 10 # south
           [22, 2]: 10 # west
           [24, 2]: 10 # east
           [23, 1]: 10 # north
-        h:
-          # Left pinky
-          [3, 2]: 10 # west
-          [1, 2]: 10 # east
-          [2, 1]: 10 # north
-          # Left ring
-          [6, 2]: 10 # west
-          [4, 2]: 10 # east
-          [5, 1]: 10 # north
-          # Left middle
-          [9, 2]: 10 # west
-          [7, 2]: 10 # east
-          [8, 1]: 10 # north
-          # Left index
-          [10, 2]: 10 # east
-          [12, 2]: 10 # west
-          [11, 1]: 10 # north
-          # Right index
-          [13, 2]: 10 # west
-          [15, 2]: 10 # east
-          [14, 1]: 10 # north
-          # Right middle
-          [16, 2]: 10 # west
-          [18, 2]: 10 # east
-          [17, 1]: 10 # north
-          # Right ring
-          [19, 2]: 10 # west
-          [21, 2]: 10 # east
-          [20, 1]: 10 # north
-          # Right pinky
-          # [23, 2]: 10 # center
-          # [23, 3]: 10 # south
-          [22, 2]: 10 # west
-          [24, 2]: 10 # east
-          [23, 1]: 10 # north
-
-        # === CATEGORY 2 LETTERS ===
         f:
           # Left pinky
           [3, 2]: 10 # west
@@ -534,9 +427,7 @@ metrics:
           [22, 2]: 10 # west
           [24, 2]: 10 # east
           [23, 1]: 10 # north
-
-        # === CATEGORY 3 LETTERS ===
-        c:
+        r:
           # Left pinky
           [3, 2]: 10 # west
           [1, 2]: 10 # east
@@ -550,12 +441,12 @@ metrics:
           [7, 2]: 10 # east
           [8, 1]: 10 # north
           # Left index
-          [10, 2]: 1 # east
-          [12, 2]: 1 # west
+          [10, 2]: 10 # east
+          [12, 2]: 10 # west
           [11, 1]: 10 # north
           # Right index
-          [13, 2]: 1 # west
-          [15, 2]: 1 # east
+          [13, 2]: 10 # west
+          [15, 2]: 10 # east
           [14, 1]: 10 # north
           # Right middle
           [16, 2]: 10 # west
@@ -564,6 +455,82 @@ metrics:
           # Right ring
           [19, 2]: 10 # west
           [21, 2]: 10 # east
+          [20, 1]: 10 # north
+          # Right pinky
+          [22, 2]: 10 # west
+          [24, 2]: 10 # east
+          [23, 1]: 10 # north
+        # === Mid-frequency double consonants ===
+        m:
+          # Left pinky
+          [3, 2]: 10 # west
+          [1, 2]: 10 # east
+          [2, 1]: 10 # north
+          # Left ring
+          [6, 2]: 1 # west
+          [4, 2]: 1 # east
+          [5, 1]: 10 # north
+          # Left middle
+          [8, 1]: 10 # north
+          # Left index
+          [11, 1]: 10 # north
+          # Right index
+          [14, 1]: 10 # north
+          # Right middle
+          [17, 1]: 10 # north
+          # Right ring
+          [19, 2]: 1 # west
+          [21, 2]: 1 # east
+          [20, 1]: 10 # north
+          # Right pinky
+          [22, 2]: 10 # west
+          [24, 2]: 10 # east
+          [23, 1]: 10 # north
+        c:
+          # Left pinky
+          [3, 2]: 10 # west
+          [1, 2]: 10 # east
+          [2, 1]: 10 # north
+          # Left ring
+          [6, 2]: 1 # west
+          [4, 2]: 1 # east
+          [5, 1]: 10 # north
+          # Left middle
+          [8, 1]: 10 # north
+          # Left index
+          [11, 1]: 10 # north
+          # Right index
+          [14, 1]: 10 # north
+          # Right middle
+          [17, 1]: 10 # north
+          # Right ring
+          [19, 2]: 1 # west
+          [21, 2]: 1 # east
+          [20, 1]: 10 # north
+          # Right pinky
+          [22, 2]: 10 # west
+          [24, 2]: 10 # east
+          [23, 1]: 10 # north
+        n:
+          # Left pinky
+          [3, 2]: 10 # west
+          [1, 2]: 10 # east
+          [2, 1]: 10 # north
+          # Left ring
+          [6, 2]: 1 # west
+          [4, 2]: 1 # east
+          [5, 1]: 10 # north
+          # Left middle
+          [8, 1]: 10 # north
+          # Left index
+          [11, 1]: 10 # north
+          # Right index
+          [14, 1]: 10 # north
+          # Right middle
+          [17, 1]: 10 # north
+          # Right ring
+          [19, 2]: 1 # west
+          [21, 2]: 1 # east
           [20, 1]: 10 # north
           # Right pinky
           [22, 2]: 10 # west
@@ -575,28 +542,20 @@ metrics:
           [1, 2]: 10 # east
           [2, 1]: 10 # north
           # Left ring
-          [6, 2]: 10 # west
-          [4, 2]: 10 # east
+          [6, 2]: 1 # west
+          [4, 2]: 1 # east
           [5, 1]: 10 # north
           # Left middle
-          [9, 2]: 10 # west
-          [7, 2]: 10 # east
           [8, 1]: 10 # north
           # Left index
-          [10, 2]: 1 # east
-          [12, 2]: 1 # west
           [11, 1]: 10 # north
           # Right index
-          [13, 2]: 1 # west
-          [15, 2]: 1 # east
           [14, 1]: 10 # north
           # Right middle
-          [16, 2]: 10 # west
-          [18, 2]: 10 # east
           [17, 1]: 10 # north
           # Right ring
-          [19, 2]: 10 # west
-          [21, 2]: 10 # east
+          [19, 2]: 1 # west
+          [21, 2]: 1 # east
           [20, 1]: 10 # north
           # Right pinky
           [22, 2]: 10 # west
@@ -608,121 +567,80 @@ metrics:
           [1, 2]: 10 # east
           [2, 1]: 10 # north
           # Left ring
-          [6, 2]: 10 # west
-          [4, 2]: 10 # east
-          [5, 1]: 10 # north
-          # Left middle
-          [9, 2]: 10 # west
-          [7, 2]: 10 # east
-          [8, 1]: 10 # north
-          # Left index
-          [10, 2]: 1 # east
-          [12, 2]: 1 # west
-          [11, 1]: 10 # north
-          # Right index
-          [13, 2]: 1 # west
-          [15, 2]: 1 # east
-          [14, 1]: 10 # north
-          # Right middle
-          [16, 2]: 10 # west
-          [18, 2]: 10 # east
-          [17, 1]: 10 # north
-          # Right ring
-          [19, 2]: 10 # west
-          [21, 2]: 10 # east
-          [20, 1]: 10 # north
-          # Right pinky
-          [22, 2]: 10 # west
-          [24, 2]: 10 # east
-          [23, 1]: 10 # north
-        m:
-          # Left pinky
-          [3, 2]: 1 # west
-          [1, 2]: 1 # east
-          [2, 1]: 10 # north
-          # Left ring
           [6, 2]: 1 # west
           [4, 2]: 1 # east
           [5, 1]: 10 # north
           # Left middle
-          [9, 2]: 1 # west
-          [7, 2]: 1 # east
           [8, 1]: 10 # north
           # Left index
-          [10, 2]: 1 # east
           [11, 1]: 10 # north
           # Right index
-          [13, 2]: 1 # west
           [14, 1]: 10 # north
           # Right middle
-          [16, 2]: 1 # west
-          [18, 2]: 1 # east
           [17, 1]: 10 # north
           # Right ring
           [19, 2]: 1 # west
           [21, 2]: 1 # east
           [20, 1]: 10 # north
           # Right pinky
-          [22, 2]: 1 # west
-          [24, 2]: 1 # east
+          [22, 2]: 10 # west
+          [24, 2]: 10 # east
           [23, 1]: 10 # north
 
         # === PUNCTUATION MARKS ===
-        # Force comma, period, question mark on left hand
-        # Forbid punctuation marks on center keys only
+        # Forbid punctuation marks on center keys and south non-pinky
         ",":
           # Left pinky
           [2, 2]: 10 # center
           # Left ring
           [5, 2]: 10 # center
+          [5, 3]: 10 # south
           # Left middle
           [8, 2]: 10 # center
+          [8, 3]: 10 # south
           # Left index
           [11, 2]: 10 # center
+          [11, 3]: 10 # south
           # Right index
-          [14, 1]: 10 # north
-          [13, 2]: 10 # west
           [14, 2]: 10 # center
-          [15, 2]: 10 # east
           [14, 3]: 10 # south
           # Right middle
-          [17, 1]: 10 # north
-          [16, 2]: 10 # west
           [17, 2]: 10 # center
-          [18, 2]: 10 # east
           [17, 3]: 10 # south
           # Right ring
-          [20, 1]: 10 # north
-          [19, 2]: 10 # west
           [20, 2]: 10 # center
-          [21, 2]: 10 # east
           [20, 3]: 10 # south
           # Right pinky
-          [23, 1]: 10 # north
-          [22, 2]: 10 # west
           [23, 2]: 10 # center
-          [24, 2]: 10 # east
-          [23, 3]: 10 # south
         ".":
           # Left pinky
+          [2, 1]: 10 # north
+          [1, 2]: 10 # east
           [2, 2]: 10 # center
+          [3, 2]: 10 # west
           # Left ring
+          [5, 1]: 10 # north
+          [4, 2]: 10 # east
           [5, 2]: 10 # center
+          [6, 2]: 10 # west
+          [5, 3]: 10 # south
           # Left middle
+          [8, 1]: 10 # north
+          [7, 2]: 10 # east
           [8, 2]: 10 # center
+          [9, 2]: 10 # west
+          [8, 3]: 10 # south
           # Left index
+          [11, 1]: 10 # north
+          [10, 2]: 10 # east
           [11, 2]: 10 # center
+          [12, 2]: 10 # west
+          [11, 3]: 10 # south
           # Right index
-          [14, 1]: 10 # north
-          [13, 2]: 10 # west
           [14, 2]: 10 # center
-          [15, 2]: 10 # east
           [14, 3]: 10 # south
           # Right middle
-          [17, 1]: 10 # north
-          [16, 2]: 10 # west
           [17, 2]: 10 # center
-          [18, 2]: 10 # east
           [17, 3]: 10 # south
           # Right ring
           [20, 1]: 10 # north
@@ -731,20 +649,19 @@ metrics:
           [21, 2]: 10 # east
           [20, 3]: 10 # south
           # Right pinky
-          [23, 1]: 10 # north
-          [22, 2]: 10 # west
           [23, 2]: 10 # center
-          [24, 2]: 10 # east
-          [23, 3]: 10 # south
         "'":
           # Left pinky
           [2, 2]: 10 # center
           # Left ring
           [5, 2]: 10 # center
+          [5, 3]: 10 # south
           # Left middle
           [8, 2]: 10 # center
+          [8, 3]: 10 # south
           # Left index
           [11, 2]: 10 # center
+          [11, 3]: 10 # south
           # Right index
           [14, 2]: 10 # center
           [14, 3]: 10 # south
@@ -756,16 +673,18 @@ metrics:
           [20, 3]: 10 # south
           # Right pinky
           [23, 2]: 10 # center
-          [23, 3]: 10 # south
         "-":
           # Left pinky
           [2, 2]: 10 # center
           # Left ring
           [5, 2]: 10 # center
+          [5, 3]: 10 # south
           # Left middle
           [8, 2]: 10 # center
+          [8, 3]: 10 # south
           # Left index
           [11, 2]: 10 # center
+          [11, 3]: 10 # south
           # Right index
           [14, 2]: 10 # center
           [14, 3]: 10 # south
@@ -777,40 +696,29 @@ metrics:
           [20, 3]: 10 # south
           # Right pinky
           [23, 2]: 10 # center
-          [23, 3]: 10 # south
         "?":
           # Left pinky
           [2, 2]: 10 # center
           # Left ring
           [5, 2]: 10 # center
+          [5, 3]: 10 # south
           # Left middle
           [8, 2]: 10 # center
+          [8, 3]: 10 # south
           # Left index
           [11, 2]: 10 # center
+          [11, 3]: 10 # south
           # Right index
-          [14, 1]: 10 # north
-          [13, 2]: 10 # west
           [14, 2]: 10 # center
-          [15, 2]: 10 # east
           [14, 3]: 10 # south
           # Right middle
-          [17, 1]: 10 # north
-          [16, 2]: 10 # west
           [17, 2]: 10 # center
-          [18, 2]: 10 # east
           [17, 3]: 10 # south
           # Right ring
-          [20, 1]: 10 # north
-          [19, 2]: 10 # west
           [20, 2]: 10 # center
-          [21, 2]: 10 # east
           [20, 3]: 10 # south
           # Right pinky
-          [23, 1]: 10 # north
-          [22, 2]: 10 # west
           [23, 2]: 10 # center
-          [24, 2]: 10 # east
-          [23, 3]: 10 # south
 
 ngrams:
   # Increase the weight of bigrams that have both an absolute weight and relative weight exceed

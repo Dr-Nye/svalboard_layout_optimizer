@@ -7,7 +7,7 @@ use super::format_utils::{format_percentages, visualize_whitespace};
 use std::{env, fmt};
 
 pub mod finger_balance;
-pub mod position_penalties;
+pub mod character_constraints;
 pub mod hand_disbalance;
 pub mod key_costs;
 pub mod modifier_usage;
