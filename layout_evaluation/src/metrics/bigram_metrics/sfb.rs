@@ -25,7 +25,7 @@
 //! - `costs`: Direction-pair cost matrix
 //! - `finger_factors`: Per-finger multipliers (e.g., index finger may handle SFBs better)
 //! - `ignore_thumbs`: Whether to exclude thumb SFBs from calculation
-//! - `exclude_modifiers`: Whether to skip bigrams involving modifier keys
+//! - `ignore_modifiers`: Whether to skip bigrams involving modifier keys
 //! - `critical_bigram_fraction`: Frequency threshold for high-penalty bigrams (optional)
 //! - `critical_bigram_factor`: Multiplier for high-frequency bigrams (optional)
 use super::BigramMetric;
@@ -42,7 +42,7 @@ use serde::Deserialize;
 pub struct Parameters {
     pub default_cost: f64,
     pub ignore_thumbs: bool,
-    pub exclude_modifiers: Option<bool>,
+    pub ignore_modifiers: Option<bool>,
     pub costs: AHashMap<Direction, AHashMap<Direction, f64>>,
     pub finger_factors: Option<AHashMap<Finger, f64>>,
     /// Minimum relative bigram frequency to apply heavy penalty (as fraction, e.g., 0.0004 = 0.04%)
@@ -55,7 +55,7 @@ pub struct Parameters {
 pub struct Sfb {
     default_cost: f64,
     ignore_thumbs: bool,
-    exclude_modifiers: bool,
+    ignore_modifiers: bool,
     costs: AHashMap<Direction, AHashMap<Direction, f64>>,
     finger_factors: Option<AHashMap<Finger, f64>>,
     critical_bigram_fraction: Option<f64>,
@@ -67,7 +67,7 @@ impl Sfb {
         Self {
             costs: params.costs.clone(),
             ignore_thumbs: params.ignore_thumbs,
-            exclude_modifiers: params.exclude_modifiers.unwrap_or(false),
+            ignore_modifiers: params.ignore_modifiers.unwrap_or(false),
             default_cost: params.default_cost,
             finger_factors: params.finger_factors.clone(),
             critical_bigram_fraction: params.critical_bigram_fraction,
@@ -91,7 +91,7 @@ impl BigramMetric for Sfb {
         _layout: &Layout,
     ) -> Option<f64> {
         // Skip modifiers if configured
-        if self.exclude_modifiers && (k1.is_modifier.is_some() || k2.is_modifier.is_some()) {
+        if self.ignore_modifiers && (k1.is_modifier.is_some() || k2.is_modifier.is_some()) {
             return Some(0.0);
         }
 
