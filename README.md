@@ -52,7 +52,7 @@ Before optimizing, you need a file containing starting layouts (one per line). Y
 
    ```bash
    # Create a starting layouts file
-   echo "q□a□zw□sbxe□dtcr□fgvuhj'miyk□,onl□.p□-□□" > eng_granite_layouts.txt
+   echo "q□a□zw□sbxe□dtcr□fgvuhj'miyk□,onl□.p-?□□" > eng_shai_layouts.txt
    ```
 
 2. **Use an existing optimized layout** from the community as a starting point
@@ -61,27 +61,27 @@ Before optimizing, you need a file containing starting layouts (one per line). Y
 
 ```bash
 # 1. Create a starting layouts file (replace with your preferred layout)
-echo "q□a□zw□sbxe□dtcr□fgvuhj'miyk□,onl□.p□-□□" > eng_granite_layouts.txt
+echo "q□a□zw□sbxe□dtcr□fgvuhj'miyk□,onl□.p-?□□" > eng_shai_layouts.txt
 
-# 2. Run optimization (this will create eng_granite_optimized_layouts.txt)
-task optimize CORPUS=eng_granite
+# 2. Run optimization (this will create eng_shai_optimized_layouts.txt)
+task optimize CORPUS=eng_shai
 
-# 3. Results are automatically generated in evaluation/eng_granite/
-ls evaluation/eng_granite/
+# 3. Results are automatically generated in evaluation/eng_shai/
+ls evaluation/eng_shai/
 ```
 
 ### Optimize Layouts
 
 Generate optimized layouts for a specific language corpus (must be in [ngrams/](ngrams/)).
 
-**Prerequisites**: You need an input layouts file containing starting layouts (one per line). By default, the task looks for `<CORPUS>_layouts.txt` (e.g., `eng_granite_layouts.txt`).
+**Prerequisites**: You need an input layouts file containing starting layouts (one per line). By default, the task looks for `<CORPUS>_layouts.txt` (e.g., `eng_shai_layouts.txt`).
 
 ```bash
-# Optimize for English Granite corpus (requires eng_granite_layouts.txt)
-task optimize CORPUS=eng_granite
+# Optimize for English corpus (requires eng_shai_layouts.txt)
+task optimize CORPUS=eng_shai
 
 # Use a custom input file
-task optimize CORPUS=eng_granite IN_LAYOUT_FILE=my_starts.txt
+task optimize CORPUS=eng_shai IN_LAYOUT_FILE=my_starts.txt
 
 # Optimize with custom parameters (fix certain keys)
 task optimize CORPUS=eng_fra -- --fix 'reoyaui'
@@ -120,7 +120,7 @@ The project includes several n-gram datasets in the [`ngrams/`](ngrams/) directo
 
 ### English
 
-- `eng_granite`: [Granite English Ngrams](https://github.com/fohrloop/granite-english-ngrams) corpus
+- `eng_shai`: **[Recommended]** [Shai's Cleaned iweb corpus](https://colemak.com/pub/corpus/iweb-corpus-samples-cleaned.txt.xz) (90M words) - A well-balanced English corpus. Named after Shai Coleman (Colemak creator) who cleaned and published this corpus.
 - `eng_web_1m`, `eng_wiki_1m`: Web and Wikipedia corpora
 
 ### French
@@ -130,9 +130,9 @@ The project includes several n-gram datasets in the [`ngrams/`](ngrams/) directo
 
 ### Bilingual
 
-- `eng_fra`: English-French bilingual corpus (eng_granite:70, fra_leipzig:30)
+- `eng_fra`: English-French bilingual corpus (eng_shai:70, fra_web:30)
 
-All French ngrams were generated using [`scripts/french/Taskfile.yml`](scripts/french/Taskfile.yml).
+All French ngrams were generated using [`scripts/corpora/Taskfile.yml`](scripts/corpora/Taskfile.yml).
 
 ## Configuration
 
@@ -218,13 +218,13 @@ For more control or integration into custom workflows, you can use the compiled 
 # Evaluate a specific layout
 cargo run --bin evaluate -- \
   --layout-config config/keyboard/sval.yml \
-  --ngrams ngrams/eng_granite \
+  --ngrams ngrams/eng_shai \
   "your layout string here"
 
 # Optimize from a starting layout
 cargo run --bin optimize_sa -- \
   --layout-config config/keyboard/sval.yml \
-  --ngrams ngrams/eng_granite \
+  --ngrams ngrams/eng_shai \
   --start-layouts "starting layout" \
   --append-solutions-to results.txt
 ```
@@ -258,17 +258,17 @@ This means you need to create a starting layouts file before running optimizatio
 
 The default input filename follows the pattern: `<CORPUS>_layouts.txt`
 
-- For `CORPUS=eng_granite`, it expects `eng_granite_layouts.txt`
+- For `CORPUS=eng_shai`, it expects `eng_shai_layouts.txt`
 - For `CORPUS=eng_fra`, it expects `eng_fra_layouts.txt`
 
 **Solution**:
 
 ```bash
 # Create a layouts file with a starting layout (filename must match corpus name)
-echo "□jp'c□□y.i,□o-u□□e□akqlmh□zn□tvbs□f□wdxgr" > eng_granite_layouts.txt
+echo "'□cqb-□i□y□?e□o□.a,um□hklgjt□dwxn□pvzs□fr" > eng_shai_layouts.txt
 
 # Or specify a different file
-task optimize CORPUS=eng_granite IN_LAYOUT_FILE=my_layouts.txt
+task optimize CORPUS=eng_shai IN_LAYOUT_FILE=my_layouts.txt
 ```
 
 ### Optimization produces poor results
