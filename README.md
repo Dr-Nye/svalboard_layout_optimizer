@@ -28,7 +28,7 @@ Install the required tools:
 git clone https://github.com/jeffzi/svalboard_layout_optimizer
 cd svalboard_layout_optimizer
 
-# Build the project
+# Build the project (optional - cargo run will build automatically)
 cargo build --release
 ```
 
@@ -112,7 +112,7 @@ The `evaluate` task generates comprehensive results in the `evaluation/<corpus>/
 - **Markdown report**: Detailed analysis with layout visualizations
 - **SVG diagrams**: Visual representations of each layout
 
-The output is processed by [`scripts/parse_results.py`](scripts/parse_results.py) which enhances the raw evaluation data with frequency information and creates user-friendly summaries.
+The output is processed by [`scripts/report/report.py`](scripts/report/report.py) which enhances the raw evaluation data with frequency information and creates user-friendly summaries.
 
 ## Language Corpora
 
@@ -147,8 +147,8 @@ The main metrics configuration is in [`config/evaluation/sval.yml`](config/evalu
 - **sfb**: Same Finger Bigram metric that evaluates same-finger bigram comfort with directional costs
 - **scissors**: Cost-based scissoring metric that penalizes adjacent finger movements with effort imbalances
 - **manual_bigram_penalty**: Penalizes specific uncomfortable bigrams (e.g., pinky same-key repeats)
-- **bigram_stats**: Provides statistics on bigram categories like SFB, scissor types, and other movement patterns (informational, weight: 0)
-- **trigram_stats**: Tracks roll and redirect statistics (informational, weight: 0)
+- **bigram_stats**: Provides statistics on bigram categories like SFB, scissor types, and other movement patterns. Supports `ignore_movements` to exclude specific direction pairs (e.g., Center→South) from SFB count (informational, weight: 0)
+- **trigram_stats**: Tracks roll and redirect statistics. Supports `same_finger_rolls` to track specific same-finger movements (e.g., Center→South, In→South) separately within bigram rolls (informational, weight: 0)
 
 ### Key Costs
 
@@ -179,7 +179,7 @@ The optimizer includes custom metrics optimized for the Svalboard's unique geome
   - **Half Scissor Lateral**: Lateral + Center - One finger moves laterally (In/Out), other presses Center
   - High-frequency scissors get additional penalty multiplier
 
-- **position_penalties**: Penalizes specific characters at specific matrix positions. Currently configured to:
+- **character_constraints**: Penalizes specific characters at specific matrix positions. Currently configured to:
   - Restrict common double letters (e, l, s, o, t, r, h, n, f, p) to comfortable positions (center/south preferred)
   - Keep punctuation marks (,.'- ) off center keys to preserve homerow flow
   - This metric is highly customizable for enforcing character placement constraints
@@ -192,8 +192,8 @@ The optimizer includes custom metrics optimized for the Svalboard's unique geome
 │   └── keyboard/sval.yml      # Svalboard physical layout
 ├── ngrams/                    # Language corpora
 ├── scripts/
-│   ├── parse_results.py       # Result processing
-│   └── french/Taskfile.yml    # French corpus generation
+│   ├── report/report.py       # Result processing
+│   └── corpora/Taskfile.yml   # Corpus generation workflows
 ├── evaluation/                # Generated evaluation results
 └── Taskfile.yml              # Main task definitions
 ```
@@ -212,17 +212,19 @@ The chosen metric weights aim to produce balanced layouts that:
 
 ### Direct Binary Usage
 
-For more control or integration into custom workflows, you can use the compiled binaries directly instead of Taskfile:
+For more control or integration into custom workflows, you can use the compiled binaries directly instead of Taskfile.
+
+**Important**: Always use `--release` flag for optimized performance (faster than debug builds):
 
 ```bash
 # Evaluate a specific layout
-cargo run --bin evaluate -- \
+cargo run --release --bin evaluate -- \
   --layout-config config/keyboard/sval.yml \
   --ngrams ngrams/eng_shai \
   "your layout string here"
 
 # Optimize from a starting layout
-cargo run --bin optimize_sa -- \
+cargo run --release --bin optimize_sa -- \
   --layout-config config/keyboard/sval.yml \
   --ngrams ngrams/eng_shai \
   --start-layouts "starting layout" \
@@ -231,17 +233,22 @@ cargo run --bin optimize_sa -- \
 
 ### Layout String Format
 
-Layouts are specified as space-separated strings representing keys from left to right, top to bottom. Use `□` for placeholder/empty positions:
+Layouts are continuous strings where:
+
+1. Each finger cluster has 5 ordered keys (north, west, center, east, south)
+2. The final character is the alpha thumb key if defined
+3. Use `□` for placeholder/empty positions
+
+Hands Down Promethium (mirrored):
 
 ```
-□□gwc□□y□i□□o□u□□e□avxlmh□qnjt□zd□s□bfkpr
+'□cqb-□i□y□?e□o□.a,um□hklgjt□dwxn□pvzs□fr
 ```
 
 ## Contributing
 
 Contributions are welcome! Areas of particular interest:
 
-- Additional language corpora
 - Metric improvements and calibration
 
 ## License
