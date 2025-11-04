@@ -145,7 +145,8 @@ The main metrics configuration is in [`config/evaluation/sval.yml`](config/evalu
 - **key_costs**: Penalizes hard-to-reach keys based on position difficulty
 - **character_constraints**: Applies penalties when specific characters appear at specific positions. Configured here to restrict high-frequency double letters to comfortable positions (center/south)
 - **sfb**: Same Finger Bigram metric that evaluates same-finger bigram comfort with directional costs
-- **scissors**: Cost-based scissoring metric that penalizes adjacent finger movements with effort imbalances
+- **fsb**: Full Scissor Bigram metric that penalizes uncomfortable opposing movements between adjacent fingers (vertical, squeeze, splay)
+- **hsb**: Half Scissor Bigram metric that penalizes uncomfortable partial opposing movements between adjacent fingers (diagonal, lateral)
 - **manual_bigram_penalty**: Penalizes specific uncomfortable bigrams (e.g., pinky same-key repeats)
 - **bigram_stats**: Provides statistics on bigram categories like SFB, scissor types, and other movement patterns. Supports `ignore_movements` to exclude specific direction pairs (e.g., Center→South) from SFB count (informational, weight: 0)
 - **trigram_stats**: Tracks roll and redirect statistics. Supports `same_finger_rolls` to track specific same-finger movements (e.g., Center→South, In→South) separately within bigram rolls (informational, weight: 0)
@@ -170,14 +171,22 @@ The optimizer includes custom metrics optimized for the Svalboard's unique geome
   - Finger multipliers increase penalties for weaker fingers
   - High-frequency SFBs get additional penalty multiplier
 
-- **scissors**: Key-cost-based scissoring that identifies when adjacent fingers have mismatched effort (e.g., weak finger doing hard work while strong finger gets easy work). Uses the key costs defined in the keyboard configuration to calculate effort imbalances. Penalties scale proportionally with the absolute cost difference between keys and distinguish between movement types:
+- **fsb**: Full Scissor Bigram metric that penalizes uncomfortable opposing movements between adjacent fingers based on inherent biomechanical discomfort:
 
-  - **Full Scissor Vertical**: Opposite vertical directions (North ↔ South)
-  - **Full Scissor Squeeze**: Fingers moving toward each other (In ↔ Out, inward motion)
-  - **Full Scissor Splay**: Fingers moving apart (In ↔ Out, outward motion)
-  - **Half Scissor Diagonal**: Lateral + Vertical - One finger moves laterally (In/Out), other vertically (North/South)
-  - **Half Scissor Lateral**: Lateral + Center - One finger moves laterally (In/Out), other presses Center
-  - High-frequency scissors get additional penalty multiplier
+  - **Vertical**: Opposite vertical directions (North ↔ South)
+  - **Squeeze**: Fingers moving toward each other (In ↔ Out, inward motion - more uncomfortable)
+  - **Splay**: Fingers moving apart (In ↔ Out, outward motion - less uncomfortable)
+  - Each movement type has configurable base costs
+  - Optional finger multipliers (weaker fingers dominate)
+  - Optional high-frequency bigram penalty multiplier
+
+- **hsb**: Half Scissor Bigram metric that penalizes uncomfortable partial opposing movements between adjacent fingers:
+
+  - **Diagonal**: Lateral + Vertical movements (one finger moves laterally In/Out, other vertically North/South)
+  - **Lateral**: Lateral + Center movements (one finger moves laterally In/Out, other presses Center)
+  - Each movement type has configurable base costs
+  - Optional finger multipliers (weaker fingers dominate)
+  - Optional high-frequency bigram penalty multiplier
 
 - **character_constraints**: Penalizes specific characters at specific matrix positions. Currently configured to:
   - Restrict common double letters (e, l, s, o, t, r, h, n, f, p) to comfortable positions (center/south preferred)

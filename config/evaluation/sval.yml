@@ -1,3 +1,10 @@
+# Shared finger factors
+_default_finger_factors: &default_finger_factors
+  Pinky: 1.5
+  Ring: 1.2
+  Middle: 1.0
+  Index: 0.8
+
 metrics:
   hand_disbalance:
     enabled: true
@@ -24,11 +31,7 @@ metrics:
         [Right, Middle]: 14
         [Right, Ring]: 11.5
         [Right, Pinky]: 8.5
-      finger_factors:
-        Pinky: 1.4
-        Ring: 1.2
-        Middle: 1.0
-        Index: 0.8
+      finger_factors: *default_finger_factors
 
   # Each keystroke incurs a cost (defined in the keyboard's layout config)
   key_costs:
@@ -135,18 +138,15 @@ metrics:
       type: weight_found
       value: 1.0
     params:
-      # Factor for Vertical (North-South opposition)
-      vertical_factor: 1.0
-      # Factor for Squeeze (fingers moving inward)
-      squeeze_factor: 1.0
-      # Factor for Splay (fingers moving outward)
-      splay_factor: 1.0
-      # Per-finger multipliers
-      finger_factors:
-        Pinky: 1.5
-        Ring: 1.0
-        Middle: 1.0
-        Index: 0.75
+      vertical:
+        cost: 1.0
+        finger_factors: *default_finger_factors
+      squeeze:
+        cost: 1.0
+        finger_factors: *default_finger_factors
+      splay:
+        cost: 1.0
+        finger_factors: *default_finger_factors
       # High-frequency scissor penalty
       critical_bigram_fraction: 0.0003
       critical_bigram_factor: 50.0
@@ -158,16 +158,12 @@ metrics:
       type: weight_found
       value: 1.0
     params:
-      # Factor for diagonal (lateral+vertical)
-      diagonal_factor: 5.0
-      # Factor for Lateral (lateral+center)
-      lateral_factor: 1.0
-      # Per-finger multipliers
-      finger_factors:
-        Pinky: 1.5
-        Ring: 1.0
-        Middle: 1.0
-        Index: 0.75
+      diagonal:
+        cost: 5.0
+        finger_factors: *default_finger_factors
+      lateral:
+        cost: 1.0
+        finger_factors: *default_finger_factors
       # High-frequency scissor penalty
       critical_bigram_fraction: 0.0003
       critical_bigram_factor: 50.0

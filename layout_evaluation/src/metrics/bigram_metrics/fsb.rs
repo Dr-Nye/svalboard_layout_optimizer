@@ -1,23 +1,21 @@
-//! Key-cost-based full scissoring metric for adjacent finger movements.
+//! Directional full scissoring metric for adjacent finger movements.
 //!
 //! ## Core Principle
 //!
-//! Identifies uncomfortable "full scissor" motions where adjacent fingers have mismatched
-//! effort levels (e.g., weak finger doing hard work while strong finger gets easy work).
-//! Penalties scale proportionally with the absolute cost difference between keys:
+//! Identifies uncomfortable "full scissor" motions where adjacent fingers move in opposing
+//! directions. Penalties are based purely on the biomechanical discomfort of the motion
+//! pattern itself, independent of key costs:
 //!
 //! ```
-//! penalty = scissor_factor × |cost_from - cost_to| × finger_factor × freq_multiplier
+//! penalty = cost × finger_factor × freq_multiplier
 //! ```
 //!
 //! Where:
-//! - `scissor_factor`: Movement-type factor (vertical/squeeze/splay)
+//! - `cost`: Base cost representing inherent biomechanical discomfort of the motion type
 //! - `finger_factor`: Max of the two fingers' factors (weaker finger dominates)
 //! - `freq_multiplier`: Optional high-frequency bigram penalty
 //!
-//! Key costs are defined in the keyboard configuration (`key_costs` section) and represent
-//! the difficulty of reaching each position. Factors are configured per movement type in
-//! the evaluation metrics configuration.
+//! Costs are configured per movement type in the evaluation metrics configuration.
 //!
 //! ## Movement Classification
 //!
@@ -27,11 +25,11 @@
 //!
 //! ## Configuration
 //!
-//! All factors and frequency thresholds are configurable in the evaluation metrics:
-//! - `vertical_factor`: Multiplier for vertical scissors
-//! - `squeeze_factor`: Multiplier for squeeze motion
-//! - `splay_factor`: Multiplier for splay motion
-//! - `finger_factors`: Per-finger multipliers (e.g., pinky scissors are worse than index)
+//! Each movement type has its own configuration:
+//! - `vertical.cost`: Base cost for vertical scissors (North ↔ South)
+//! - `squeeze.cost`: Base cost for squeeze motion (fingers moving inward)
+//! - `splay.cost`: Base cost for splay motion (fingers moving outward)
+//! - `<type>.finger_factors`: Optional per-finger multipliers (e.g., pinky scissors worse than index)
 //! - `critical_bigram_fraction`: Frequency threshold for high-penalty bigrams (optional)
 //! - `critical_bigram_factor`: Multiplier for high-frequency bigrams (optional)
 
@@ -75,15 +73,23 @@ impl ScissorCategory for FsbCategory {
 }
 
 #[derive(Clone, Deserialize, Debug)]
-pub struct Parameters {
-    /// Base cost factor for Vertical (North-South opposition)
-    pub vertical_factor: f64,
-    /// Base cost factor for Squeeze (fingers moving inward)
-    pub squeeze_factor: f64,
-    /// Base cost factor for Splay (fingers moving outward)
-    pub splay_factor: f64,
-    /// Per-finger multipliers (e.g., pinky: 1.5, index: 0.75)
+pub struct CategoryParams {
+    /// Base cost representing inherent biomechanical discomfort
+    pub cost: f64,
+    /// Optional per-finger multipliers (e.g., pinky: 1.5, index: 0.75)
+    /// Defaults to None (all fingers treated equally)
+    #[serde(default)]
     pub finger_factors: Option<AHashMap<Finger, f64>>,
+}
+
+#[derive(Clone, Deserialize, Debug)]
+pub struct Parameters {
+    /// Configuration for Vertical scissors (North-South opposition)
+    pub vertical: CategoryParams,
+    /// Configuration for Squeeze scissors (fingers moving inward)
+    pub squeeze: CategoryParams,
+    /// Configuration for Splay scissors (fingers moving outward)
+    pub splay: CategoryParams,
     /// Minimum relative bigram frequency to apply heavy penalty (as fraction, e.g., 0.0004 = 0.04%)
     pub critical_bigram_fraction: Option<f64>,
     /// Multiplier for bigrams above critical_bigram_fraction (e.g., 100.0 = 100x penalty)
@@ -92,9 +98,9 @@ pub struct Parameters {
 
 #[derive(Clone, Debug)]
 struct FsbCompute {
-    vertical_factor: f64,
-    squeeze_factor: f64,
-    splay_factor: f64,
+    vertical_cost: f64,
+    squeeze_cost: f64,
+    splay_cost: f64,
 }
 
 impl ScissorCompute<FsbCategory> for FsbCompute {
@@ -105,14 +111,11 @@ impl ScissorCompute<FsbCategory> for FsbCompute {
 
         let dir_from = k1.key.direction;
         let dir_to = k2.key.direction;
-        let cost_from = k1.key.cost;
-        let cost_to = k2.key.cost;
-        let cost_diff = (cost_from - cost_to).abs();
 
         match (dir_from, dir_to) {
             // FSB: Full Scissor Vertical - North-South opposition
             (South, North) | (North, South) => {
-                Some((self.vertical_factor * cost_diff, FsbCategory::Vertical))
+                Some((self.vertical_cost, FsbCategory::Vertical))
             }
 
             // FSB: Full Scissor Lateral - In-Out opposition (squeeze/splay)
@@ -122,13 +125,13 @@ impl ScissorCompute<FsbCategory> for FsbCompute {
                 let inward_motion = finger_from.numeric_index() > finger_to.numeric_index();
                 let is_squeeze = inward_motion ^ (dir_from == Out);
 
-                let (factor, category) = if is_squeeze {
-                    (self.squeeze_factor, FsbCategory::Squeeze)
+                let (cost, category) = if is_squeeze {
+                    (self.squeeze_cost, FsbCategory::Squeeze)
                 } else {
-                    (self.splay_factor, FsbCategory::Splay)
+                    (self.splay_cost, FsbCategory::Splay)
                 };
 
-                Some((factor * cost_diff, category))
+                Some((cost, category))
             }
 
             // All other combinations: not full scissors
@@ -142,20 +145,44 @@ pub struct Fsb {
     inner: ScissorMetric<FsbCategory, FsbCompute>,
 }
 
+/// Merge finger_factors from multiple categories
+/// Returns None if all categories have None, otherwise returns union of all factors
+fn merge_finger_factors(
+    category_factors: &[Option<&AHashMap<Finger, f64>>],
+) -> Option<AHashMap<Finger, f64>> {
+    let has_any = category_factors.iter().any(|f| f.is_some());
+    if !has_any {
+        return None;
+    }
+
+    let mut merged = AHashMap::new();
+    for factors in category_factors.iter().filter_map(|f| *f) {
+        merged.extend(factors.iter().map(|(k, v)| (*k, *v)));
+    }
+    Some(merged)
+}
+
 impl Fsb {
     pub fn new(params: &Parameters) -> Self {
         let compute = FsbCompute {
-            vertical_factor: params.vertical_factor,
-            squeeze_factor: params.squeeze_factor,
-            splay_factor: params.splay_factor,
+            vertical_cost: params.vertical.cost,
+            squeeze_cost: params.squeeze.cost,
+            splay_cost: params.splay.cost,
         };
+
+        // Merge finger_factors from all categories
+        let merged_finger_factors = merge_finger_factors(&[
+            params.vertical.finger_factors.as_ref(),
+            params.squeeze.finger_factors.as_ref(),
+            params.splay.finger_factors.as_ref(),
+        ]);
 
         Self {
             inner: ScissorMetric::new(
                 "FSB",
                 params.critical_bigram_fraction,
                 params.critical_bigram_factor,
-                params.finger_factors.clone(),
+                merged_finger_factors,
                 compute,
             ),
         }
