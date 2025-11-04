@@ -4,8 +4,9 @@ import csv
 import json
 import re
 from pathlib import Path
-from typing import Optional
+from typing import Callable, Optional, TextIO
 from urllib.parse import quote
+import unicodedata
 
 import typer
 from rich.console import Console
@@ -19,7 +20,26 @@ DEFAULT_FREQ_THRESHOLD = 0.01  # 1% - minimum frequency to include in reports
 BALANCE_METRIC_DECIMALS = 1  # decimal places for balance metrics
 DEFAULT_METRIC_DECIMALS = 2  # decimal places for most metrics
 
-# Regex patterns (compiled once at module level)
+# Metrics that should have low-frequency entries filtered
+METRICS_TO_FILTER = ["SFB", "Manual Bigram Penalty", "Scissors", "FSB", "HSB"]
+
+BIGRAM_STAT_PATTERNS = ["SFB", "Vertical", "Squeeze", "Splay", "Diagonal", "Lateral"]
+
+TRIGRAM_STAT_PATTERNS = [
+    "2-Roll Total",
+    "2-Roll In",
+    "2-Roll Out",
+    "2-Roll Center→South",
+    "Alt",
+    "Redirect",
+    "Weak redirect",
+    "SFS",
+]
+
+SCISSOR_PATTERNS = ["Vertical", "Squeeze", "Splay", "Diagonal", "Lateral"]
+
+ROLL_PATTERNS = ["2-Roll Total", "2-Roll In", "2-Roll Out", "2-Roll Center→South"]
+
 SECTION_RE = re.compile(r"^\s*([^:;]+):\s*(.*)$")
 ENTRY_RE = re.compile(
     r"(?:(?<=^)|(?<=,)|(?<=;)|(?<=:))\s*"  # entry boundary
@@ -38,6 +58,8 @@ METRICS_ORDER = [
     ("FSB", "FSB", "number", 2),
     ("HSB", "HSB", "number", 2),
     ("SFS", "SFS", "number", 2),
+    ("Redirects", "Redirects", "number", 2),
+    ("Weak Redirect", "Weak Redirect", "number", 2),
     ("Key Costs", "Key Costs", "number", 2),
     ("Manual Bigram Penalty", "Manual Bigram Penalty", "number", 2),
     ("SFB Worst", "SFB", "worst_only", None),
@@ -45,6 +67,8 @@ METRICS_ORDER = [
     ("FSB Worst", "FSB", "worst_only", None),
     ("HSB Worst", "HSB", "worst_only", None),
     ("SFS Worst", "SFS", "worst_only", None),
+    ("Redirects Worst", "Redirects", "worst_only", None),
+    ("Weak Redirect Worst", "Weak Redirect", "worst_only", None),
     ("Movement Pattern Worst", "Movement Pattern", "worst_only", None),
     ("Manual Bigram Penalty Worst", "Manual Bigram Penalty", "worst_only", None),
     ("Secondary Bigrams Worst", "Secondary Bigrams", "worst_only", None),
@@ -56,53 +80,54 @@ METRICS_ORDER = [
 
 COLUMN_HEADERS = ["Layout", "Homerow"] + [display for display, *_ in METRICS_ORDER]
 
-METRICS_DESCRIPTION = """## Metrics Description
+METRICS_DESCRIPTIONS = {
+    "Hands Disbalance": "Left and right hand balance",
+    "Finger Balance": "Left pinky -> left index and then right index -> right pinky",
+    "Finger Disbalance": "Left pinky -> left index and then right index -> right pinky",
+    "Homerow": "The center keys of each finger cluster",
+    "SFB": "Same Finger Bigram metric that evaluates the comfort of same finger bigrams. Center to south bigrams are good here.",
+    "SFB %": "Same Finger Bigrams percentage (excluding good Center→South movements)",
+    "Scissors %": "Scissor movements between adjacent fingers:\n  - **Vertical**: North-South opposition\n  - **Squeeze**: Fingers moving inward (more uncomfortable)\n  - **Splay**: Fingers moving outward (less uncomfortable)\n  - **Diagonal**: Lateral + vertical movements\n  - **Lateral**: Lateral displacement with center",
+    "FSB": "Full Scissor Bigram metric for the most uncomfortable scissor movements: Vertical (North↔South opposition), Squeeze (fingers moving inward), and Splay (fingers moving outward). Penalties based on inherent biomechanical discomfort.",
+    "HSB": "Half Scissor Bigram metric for less severe scissor movements: Diagonal (lateral+vertical movements) and Lateral (lateral+center movements). Penalties based on inherent biomechanical discomfort.",
+    "SFS": "Same Finger Skipgram (SFS) metric that evaluates the comfort of skipgrams typed with the same finger. Skipgrams are generally uncomfortable because the middle keystroke interrupts the finger movement pattern.",
+    "SFS %": "Same Finger Skipgram percentage",
+    "2-Rolls": "Roll statistics for 3-key sequences with hand alternation where the 2 same-hand keys use different fingers:\n  - **Total**: All rolls combined\n  - **In**: Inward rolls (towards the index finger)\n  - **Out**: Outward rolls (towards the pinky)\n  - **Center→South**: Same-finger vertical movement from center row to south row in a roll pattern",
+    "Alternation %": "Hand alternation percentage",
+    "Redirect": "Penalizes one-handed trigrams with direction changes (e.g., inward→outward or outward→inward) that involve the index finger or thumb.",
+    "Redirect %": "Redirect percentage (direction changes involving index finger or thumb)",
+    "Weak Redirect": "Penalizes one-handed trigrams with direction changes that do NOT involve the index finger or thumb, making them harder to execute.",
+    "Weak Redirect %": "Weak redirect percentage (direction changes NOT involving index finger or thumb)",
+    "Key Costs": "Penalizes using keys that are harder to reach based on position (direction and finger)",
+    "Manual Bigram Penalty": "Applies specific penalties to manually defined key combinations that are hard to describe otherwise, such as same-key repeats on pinky fingers",
+    "Bigram Statistics": "Informational statistics showing percentages of various bigram categories",
+    "Trigram Statistics": "Informational statistics showing rolls, alternation, redirects, and skipgrams",
+}
 
-**finger_balance**: Left pinky -> left index and then right index -> right pinky
 
-**hand_disbalance**: Left and right hand balance
+def generate_metrics_description(filtered_headers: list[str]) -> str:
+    """Generate metrics description section based on metrics actually present in the output."""
+    # Collect unique metrics that have descriptions
+    metrics_to_describe = set()
+    for header in filtered_headers:
+        # Map headers to their base metric names
+        if header in METRICS_DESCRIPTIONS:
+            metrics_to_describe.add(header)
+        elif "Worst" in header:
+            base_name = header.replace(" Worst", "")
+            if base_name in METRICS_DESCRIPTIONS:
+                metrics_to_describe.add(base_name)
 
-**bigram_stats**: Informational statistics showing percentages of various bigram categories:
-  - **SFB**: Same Finger Bigrams (excluding good Center→South movements)
-  - **Full Vertical**: North-South scissoring opposition
-  - **Squeeze**: Fingers moving inward (In↔Out opposition, more uncomfortable)
-  - **Splay**: Fingers moving outward (Out↔In opposition, less uncomfortable)
-  - **Half**: Diagonal movements (lateral + vertical)
-  - **Lateral**: Lateral displacement with center
+    if not metrics_to_describe:
+        return ""
 
-**direction_balance**: Tracks keypress patterns in different directions (informational only). Center and south keys are ideal
+    lines = ["## Metrics Description\n"]
+    for metric in sorted(metrics_to_describe):
+        if metric in METRICS_DESCRIPTIONS:
+            lines.append(f"**{metric}**: {METRICS_DESCRIPTIONS[metric]}\n")
 
-**key_costs**: Penalizes using keys that are harder to reach based on position (based on direction and finger)
+    return "\n".join(lines)
 
-**position_penalties**: Applies penalties when specific characters appear at specific matrix positions. Used to enforce character placement constraints, such as restricting high-frequency double letters to comfortable positions or keeping punctuation marks off homerow keys
-
-**sfb**: Same Finger Bigram metric that evaluates the comfort of same finger bigrams. Center to south bigrams are good here.
-
-**sfs**: Same Finger Skipgram (SFS) metric that evaluates the comfort of skipgrams typed with the same finger. Skipgrams are generally uncomfortable because the middle keystroke interrupts the finger movement pattern.
-
-**scissors**: Cost-based scissor metric that penalizes adjacent finger movements where there's an effort imbalance (e.g., weak finger doing hard work while strong finger gets easy work). Penalties scale proportionally to the key cost difference and distinguish between movement types: Full Scissor Vertical (North↔South), Full Scissor Squeeze/Splay (In↔Out lateral, squeeze being worse), Half Scissor (diagonal lateral+vertical), and Lateral Stretch (lateral+center)
-
-**fsb**: Full Scissor Bigram metric focused on the most uncomfortable scissor movements: Full Scissor Vertical (North↔South opposition), Full Scissor Squeeze (fingers moving inward), and Full Scissor Splay (fingers moving outward). Penalties scale proportionally to the key cost difference
-
-**hsb**: Half Scissor Bigram metric focused on less severe scissor movements: Half Scissor (diagonal lateral+vertical movements) and Lateral (lateral+center movements). Penalties scale proportionally to the key cost difference
-
-**symmetric_handswitches**: Rewards using symmetrical key positions when switching between hands, but only for center, south, and index/middle north keys
-
-**movement_pattern**: Assigns costs to finger transitions within the same hand. If the movement is center key to center key or south key to south key, there is no penalty
-
-**manual_bigram_penalty**: Applies specific penalties to manually defined key combinations that are hard to describe otherwise, such as same-key repeats on pinky fingers
-
-**secondary_bigrams**: Evaluates the comfort of the first and last keys in three-key sequences
-
-**no_handswitch_in_trigram**: Penalizes typing three consecutive keys on the same hand
-
-**trigram_statistics**: Provides statistics on rolls and redirects:
-  - **Bigram roll in/out**: Rolls are 3-key sequences (2,1 or 1,2) with hand alternation where the 2 same-hand keys use different fingers. Inward rolls move towards the index finger, outward rolls move towards the pinky
-  - **Center->South**: Same-finger vertical movement from center row to south row in a roll pattern
-  - **Redirect**: One-handed trigrams where direction changes (e.g., QWERTY "SAD": outward then inward)
-  - **Weak redirect**: Redirects that don't involve the index finger, considered harder to type
-
-"""
 
 # =============================================================================
 # CORPUS HANDLING
@@ -195,8 +220,7 @@ def drop_low_freq_entries(
     return "; ".join(out_sections)
 
 
-def clean_worst_message(message: str, metric_name: str = "") -> str:
-    """Clean message by removing unnecessary prefixes."""
+def clean_message(message: str, metric_name: str = "") -> str:
     prefixes = ["Finger loads % (no thumb): ", "Hand loads % (no thumb): ", "Worst: "]
     for prefix in prefixes:
         message = message.replace(prefix, "")
@@ -212,6 +236,18 @@ def clean_worst_message(message: str, metric_name: str = "") -> str:
         message = re.sub(
             r"(\d+\.\d+)%,", lambda m: f"{float(m.group(1)):.{decimals}f}%,", message
         )
+
+    if metric_name == "Bigram Statistics":
+        for pattern in BIGRAM_STAT_PATTERNS:
+            message = message.replace(f"{pattern}:", f"<u>{pattern}</u>:")
+    elif metric_name == "Trigram Statistics":
+        # Remove unwanted sub-metrics
+        message = re.sub(r",\s*3-Roll In:\s*[\d.]+%", "", message)
+        message = re.sub(r",\s*3-Roll Out:\s*[\d.]+%", "", message)
+        message = re.sub(r";\s*Other:\s*[\d.]+%", "", message)
+
+        for pattern in TRIGRAM_STAT_PATTERNS:
+            message = message.replace(f"{pattern}:", f"<u>{pattern}</u>:")
 
     return message.strip()
 
@@ -232,17 +268,7 @@ def process_layout_metrics(
             core = metric_cost["core"]
             message = core["message"]
 
-            if (
-                core["name"]
-                in [
-                    "SFB",
-                    "Manual Bigram Penalty",
-                    "Scissors",
-                    "FSB",
-                    "HSB",
-                ]
-                and bigram_frequencies
-            ):
+            if core["name"] in METRICS_TO_FILTER and bigram_frequencies:
                 message = drop_low_freq_entries(message)
 
             metrics_data[core["name"]] = {
@@ -251,6 +277,80 @@ def process_layout_metrics(
             }
 
     return metrics_data
+
+
+def extract_statistic_value(message: str, pattern: str) -> str:
+    """Extract a specific statistic value from a message string."""
+    # Match pattern like "SFB: 0.26%" or "<u>Alt</u>: 41.2%"
+    # Handle both with and without underline tags
+    escaped_pattern = re.escape(pattern)
+    match = re.search(rf"(?:<u>)?{escaped_pattern}(?:</u>)?:\s*([\d.]+%)", message)
+    return match.group(1) if match else ""
+
+
+def extract_bigram_sfb(message: str) -> str:
+    """Extract SFB percentage from Bigram Statistics."""
+    return extract_statistic_value(message, "SFB")
+
+
+def extract_bigram_scissors(message: str) -> str:
+    """Extract all scissor statistics (Vertical, Squeeze, Splay, Diagonal, Lateral)."""
+    scissors = []
+    for pattern in SCISSOR_PATTERNS:
+        value = extract_statistic_value(message, pattern)
+        if value:
+            scissors.append(f"<u>{pattern}</u>: {value}")
+    return ", ".join(scissors) if scissors else ""
+
+
+def extract_trigram_rolls(message: str) -> str:
+    """Extract all roll statistics into one cell."""
+    rolls = []
+    for pattern in ROLL_PATTERNS:
+        value = extract_statistic_value(message, pattern)
+        if value:
+            # Shorten labels for compactness
+            short_label = pattern.replace("2-Roll ", "")
+            rolls.append(f"<u>{short_label}</u>: {value}")
+    return ", ".join(rolls) if rolls else ""
+
+
+def extract_trigram_alt(message: str) -> str:
+    """Extract Alt percentage from Trigram Statistics."""
+    return extract_statistic_value(message, "Alt")
+
+
+def extract_trigram_redirect(message: str) -> str:
+    """Extract Redirect percentage from Trigram Statistics."""
+    return extract_statistic_value(message, "Redirect")
+
+
+def extract_trigram_weak_redirect(message: str) -> str:
+    """Extract Weak redirect percentage from Trigram Statistics."""
+    return extract_statistic_value(message, "Weak redirect")
+
+
+def extract_trigram_sfs(message: str) -> str:
+    """Extract SFS percentage from Trigram Statistics."""
+    return extract_statistic_value(message, "SFS")
+
+
+# Summary table configuration: (display_header, source_metric, extractor_function)
+# extractor_function is None for direct access, or a callable for extracted values
+SUMMARY_COLUMNS_CONFIG: list[tuple[str, str, Optional[Callable[[str], str]]]] = [
+    ("SVG", "SVG", None),
+    ("Total Cost", "Total Cost", None),
+    ("Hands Disbalance", "Hands Disbalance", None),
+    ("Finger Disbalance", "Finger Disbalance", None),
+    ("Alternation", "Trigram Statistics", extract_trigram_alt),
+    ("SFB", "Bigram Statistics", extract_bigram_sfb),
+    ("Scissors", "Bigram Statistics", extract_bigram_scissors),
+    ("2-Rolls", "Trigram Statistics", extract_trigram_rolls),
+    ("Redirect", "Trigram Statistics", extract_trigram_redirect),
+    ("Weak Redirect", "Trigram Statistics", extract_trigram_weak_redirect),
+    ("SFS", "Trigram Statistics", extract_trigram_sfs),
+    ("Layout", "Layout", None),
+]
 
 
 def extract_homerow(layout: str) -> str:
@@ -265,8 +365,6 @@ def extract_homerow(layout: str) -> str:
         return ""
 
     centers = []
-    # Clusters 1-6: left ring, left middle, left index, right index, right middle, right ring
-    # (skipping cluster 0 = left pinky and cluster 7 = right pinky)
     for cluster_idx in range(0, 8):
         center_pos = cluster_idx * 5 + 2
         centers.append(layout[center_pos])
@@ -277,9 +375,7 @@ def extract_homerow(layout: str) -> str:
 def build_layout_row(
     layout: str, total_cost: float, metrics_data: dict[str, dict]
 ) -> dict:
-    """Build a dict for one row following COLUMN_HEADERS order.
-    Insertion order matches COLUMN_HEADERS.
-    """
+    """Build a dict for one row following COLUMN_HEADERS order."""
     row = {}
     row[COLUMN_HEADERS[0]] = layout  # "Layout"
     row[COLUMN_HEADERS[1]] = extract_homerow(layout)  # "Homerow"
@@ -294,9 +390,7 @@ def build_layout_row(
             format_type in ("message_only", "worst_only")
             and metric_name in metrics_data
         ):
-            message = clean_worst_message(
-                metrics_data[metric_name]["message"], metric_name
-            )
+            message = clean_message(metrics_data[metric_name]["message"], metric_name)
             row[display_header] = message
         else:
             row[display_header] = ""
@@ -415,18 +509,20 @@ def parse_diagrams(txt_file: Path, output_dir: Path) -> list[tuple[str, str]]:
 
 
 def generate_anchor_id(text: str) -> str:
-    """Generate a markdown anchor ID from text (GitHub-flavored markdown style)."""
-    # Convert to lowercase
-    anchor = text.lower()
-    # Replace spaces with hyphens
-    anchor = anchor.replace(" ", "-")
-    # Remove special characters, keeping only alphanumeric, hyphens, and underscores
-    anchor = re.sub(r"[^a-z0-9\-_]", "", anchor)
-    # Remove consecutive hyphens
-    anchor = re.sub(r"-+", "-", anchor)
-    # Strip leading/trailing hyphens
-    anchor = anchor.strip("-")
-    return anchor
+    """Generate a stable anchor ID (ASCII, lowercase). Non-alphanumerics collapse to hyphens."""
+    s = unicodedata.normalize("NFKD", text).encode("ascii", "ignore").decode("ascii")
+    s = s.lower()
+    s = re.sub(r"[^a-z0-9]+", "-", s)  # any run → hyphen
+    s = re.sub(r"-{2,}", "-", s).strip("-")
+    return s
+
+
+def _md_cell(v: object) -> str:
+    """Escape markdown table delimiters and flatten line breaks."""
+    s = "" if v is None else str(v)
+    # escape table delimiters and flatten hard line breaks
+    s = s.replace("|", r"\|").replace("\n", "<br>")
+    return s
 
 
 # =============================================================================
@@ -465,133 +561,208 @@ def export_csv(records: list[dict], output_file: Path) -> None:
         writer.writerows(records)
 
 
-def export_markdown(
-    records: list[dict],
-    generated_layouts: list[tuple[str, str]],
-    output_file: Path,
+def _generate_layout_anchors(records: list[dict]) -> dict[str, str]:
+    """Generate stable, unique anchor IDs for all layout headings."""
+    used_ids: set[str] = set()
+    layout_id: dict[str, str] = {}
+
+    for rec in records:
+        base = generate_anchor_id(rec["Layout"])
+        anchor = base or "section"
+        if anchor in used_ids:
+            i = 2
+            while f"{anchor}-{i}" in used_ids:
+                i += 1
+            anchor = f"{anchor}-{i}"
+        used_ids.add(anchor)
+        layout_id[rec["Layout"]] = anchor
+
+    return layout_id
+
+
+def _write_table_of_contents(
+    f: TextIO, records: list[dict], layout_id: dict[str, str]
 ) -> None:
-    """Export parsed layout records to markdown with summary table and detailed sections."""
-    filtered_headers = filter_empty_columns(records)
+    """Write the table of contents section."""
+    toc_items = (
+        ["- [Summary](#summary)", "- [Layout Details](#layout-details)"]
+        + [f"  - [{rec['Layout']}](#{layout_id[rec['Layout']]})" for rec in records]
+        + ["- [Metrics Description](#metrics-description)"]
+    )
+    f.write("## Table of Contents\n\n")
+    f.write("\n".join(toc_items) + "\n\n")
 
-    with open(output_file, "w", encoding="utf-8") as f:
-        f.write("# Keyboard Layout Results\n\n")
 
-        toc_items = (
-            ["- [Summary](#summary)", "- [Layout Details](#layout-details)"]
-            + [
-                f"  - [{rec['Layout']}](#{generate_anchor_id(rec['Layout'])})"
-                for rec in records
-            ]
-            + ["- [Metrics Description](#metrics-description)"]
-        )
-        f.write("## Table of Contents\n\n")
-        f.write("\n".join(toc_items) + "\n\n")
+def _get_summary_headers(filtered_headers: list[str]) -> list[str]:
+    """Determine which summary headers to include based on available data."""
+    summary_headers: list[str] = []
 
-        f.write("## Summary\n\n")
+    for display_header, source_metric, _ in SUMMARY_COLUMNS_CONFIG:
+        # Always include SVG and Layout columns
+        if display_header in ["SVG", "Layout"]:
+            summary_headers.append(display_header)
+        # Include other columns if their source metric exists in data
+        elif source_metric in filtered_headers:
+            summary_headers.append(display_header)
 
-        # Filter summary headers to only include those with data
-        all_summary_headers = [
-            "SVG",
-            "Homerow",
-            "Total Cost",
-            "Hands Disbalance",
-            "Finger Disbalance",
-            "Bigram Stats",
-            "Non-Rolls",
-            "SFB",
-            "SFS",
-            "Scissors",
-            "Manual Bigram Penalty",
-            "Layout",
-        ]
+    return summary_headers
 
-        # Map display names to actual column names for filtering
-        summary_mapping = {
-            "SVG": "SVG",  # Special case, always included if SVGs exist
-            "Homerow": "Homerow",  # Always included
-            "Total Cost": "Total Cost",
-            "Hands Disbalance": "Hands Disbalance",
-            "Finger Disbalance": "Finger Disbalance",
-            "Bigram Stats": "Bigram Stats",
-            "Non-Rolls": "Non-Rolls",
-            "SFB": "SFB",
-            "SFS": "SFS",
-            "Scissors": "Scissors",
-            "Manual Bigram Penalty": "Manual Bigram Penalty",
-            "Layout": "Layout",  # Always included
-        }
 
-        summary_headers = []
-        metrics = []
+def _build_summary_row_cells(
+    rec: dict,
+    summary_headers: list[str],
+    layout_id: dict[str, str],
+    layout_to_svg: dict[str, str],
+) -> list[str]:
+    """Build row cells for summary table based on headers using configuration."""
+    row_cells = []
+    layout = rec["Layout"]
 
-        for header in all_summary_headers:
-            if header in ["SVG", "Layout", "Homerow"]:
-                # Always include SVG, Homerow, and Layout columns
-                summary_headers.append(header)
-                if header not in ["SVG", "Layout"]:
-                    metrics.append(summary_mapping[header])
-            elif summary_mapping[header] in filtered_headers:
-                summary_headers.append(header)
-                metrics.append(summary_mapping[header])
+    # Build lookup map from display header to config
+    config_map = {
+        header: (source, extractor_fn)
+        for header, source, extractor_fn in SUMMARY_COLUMNS_CONFIG
+    }
 
-        f.write("| " + " | ".join(summary_headers) + " |\n")
-        f.write("|" + "|".join(["--------"] * len(summary_headers)) + "|\n")
-
-        layout_to_svg = dict(generated_layouts) if generated_layouts else {}
-        for rec in records:
-            layout = rec["Layout"]
+    for header in summary_headers:
+        if header == "SVG":
             svg_cell = (
                 f'<img src="svgs/{quote(Path(layout_to_svg[layout]).name)}" width="600">'
                 if layout in layout_to_svg
                 else ""
             )
-            layout_link = f"[{layout}](#{generate_anchor_id(layout)})"
-            row_cells = (
-                [svg_cell]
-                + [str(rec.get(metric, "")) for metric in metrics]
-                + [layout_link]
-            )
-            f.write("| " + " | ".join(row_cells) + " |\n")
+            row_cells.append(_md_cell(svg_cell))
+        elif header == "Layout":
+            layout_link = f"[{layout}](#{layout_id[layout]})"
+            row_cells.append(_md_cell(layout_link))
+        else:
+            # Use configuration to determine how to extract the value
+            source_metric, extractor_fn = config_map.get(header, (None, None))
+            if extractor_fn and source_metric:
+                # Use extractor function to get value from source metric
+                source_data = rec.get(source_metric, "")
+                value = extractor_fn(source_data)
+                row_cells.append(_md_cell(value))
+            else:
+                # Direct access from record
+                row_cells.append(_md_cell(rec.get(header, "")))
 
-        f.write("\n## Layout Details\n\n")
-        for rec in records:
-            layout = rec["Layout"]
-            f.write(f"### {layout}\n\n")
+    return row_cells
 
-            # Add SVG image if available
-            if layout in layout_to_svg:
-                svg_filename = Path(layout_to_svg[layout]).name
-                f.write(f'<img src="svgs/{quote(svg_filename)}" width="800">\n\n')
 
-            f.write(f"**Total Cost:** {rec.get('Total Cost', '')}\n\n")
-            f.write("#### All Metrics\n\n")
+def _write_summary_table(
+    f: TextIO,
+    records: list[dict],
+    summary_headers: list[str],
+    layout_id: dict[str, str],
+    generated_layouts: list[tuple[str, str]],
+) -> None:
+    """Write the summary table section."""
+    f.write("## Summary\n\n")
 
-            metrics_data = [
-                (header, str(rec.get(header, "")))
-                for header in filtered_headers[1:]
-                if "Worst" not in header
-                and header != "Total Cost"
-                and rec.get(header, "")
-            ]
-            if metrics_data:
-                metric_names, values = zip(*metrics_data)
-                f.write("| " + " | ".join(metric_names) + " |\n")
-                f.write("|" + "|".join(["--------"] * len(metric_names)) + "|\n")
-                f.write("| " + " | ".join(values) + " |\n")
+    # Header row
+    f.write("| " + " | ".join(summary_headers) + " |\n")
+    f.write("|" + "|".join(["--------"] * len(summary_headers)) + "|\n")
 
-            worst_cases = [
-                (header.replace(" Worst", ""), rec.get(header, ""))
-                for header in filtered_headers[1:]
-                if "Worst" in header and rec.get(header, "")
-            ]
-            if worst_cases:
-                f.write("\n#### Worst Cases\n\n")
-                for metric_name, value in worst_cases:
-                    f.write(f"- **{metric_name}:** {value}\n")
+    # Map layout -> svg path
+    layout_to_svg = dict(generated_layouts) if generated_layouts else {}
 
-            f.write("\n---\n\n")
+    # Data rows
+    for rec in records:
+        row_cells = _build_summary_row_cells(
+            rec, summary_headers, layout_id, layout_to_svg
+        )
+        f.write("| " + " | ".join(row_cells) + " |\n")
 
-        f.write(f"{METRICS_DESCRIPTION}")
+    # Force the table to terminate cleanly in GFM
+    f.write("\n<!-- end of summary table -->\n\n")
+
+
+def _write_layout_details(
+    f: TextIO,
+    records: list[dict],
+    filtered_headers: list[str],
+    layout_id: dict[str, str],
+    generated_layouts: list[tuple[str, str]],
+) -> None:
+    """Write the layout details section with individual layout analysis."""
+    f.write("## Layout Details\n\n")
+
+    layout_to_svg = dict(generated_layouts) if generated_layouts else {}
+
+    for rec in records:
+        layout = rec["Layout"]
+        anchor = layout_id[layout]
+        f.write(f'<a id="{anchor}"></a>\n')
+        f.write(f"### {layout}\n\n")
+
+        # Add SVG image if available
+        if layout in layout_to_svg:
+            svg_filename = Path(layout_to_svg[layout]).name
+            f.write(f'<img src="svgs/{quote(svg_filename)}" width="800">\n\n')
+
+        f.write(f"**Total Cost:** {rec.get('Total Cost', '')}\n\n")
+
+        # Build metrics table excluding Total Cost and any "Worst" summaries
+        metrics_data = [
+            (header, str(rec.get(header, "")))
+            for header in filtered_headers[1:]
+            if "Worst" not in header
+            and header != "Total Cost"
+            and rec.get(header, "") != ""
+        ]
+        if metrics_data:
+            metric_names, values = zip(*metrics_data)
+            f.write("| " + " | ".join(metric_names) + " |\n")
+            f.write("|" + "|".join(["--------"] * len(metric_names)) + "|\n")
+            # Escape all cell contents to avoid breaking the table
+            f.write("| " + " | ".join(_md_cell(v) for v in values) + " |\n")
+
+        # Worst-cases list (bulleted; not a table, so pipes are fine)
+        worst_cases = [
+            (header.replace(" Worst", ""), rec.get(header, ""))
+            for header in filtered_headers[1:]
+            if "Worst" in header and rec.get(header, "")
+        ]
+        if worst_cases:
+            for metric_name, value in worst_cases:
+                f.write(f"- **{metric_name}:** {value}\n")
+
+        f.write("\n---\n\n")
+
+
+def export_markdown(
+    records: list[dict],
+    generated_layouts: list[tuple[str, str]],
+    output_file: Path,
+) -> None:
+    """Export parsed layout records to markdown with summary table and detailed sections.
+
+    Generates a comprehensive markdown report including:
+    - Table of contents
+    - Summary table with key metrics
+    - Detailed layout analysis
+    - Metrics descriptions
+    """
+    filtered_headers = filter_empty_columns(records)
+    layout_id = _generate_layout_anchors(records)
+    summary_headers = _get_summary_headers(filtered_headers)
+
+    with open(output_file, "w", encoding="utf-8") as f:
+        f.write("# Keyboard Layout Results\n\n")
+
+        _write_table_of_contents(f, records, layout_id)
+        _write_summary_table(f, records, summary_headers, layout_id, generated_layouts)
+        _write_layout_details(
+            f, records, filtered_headers, layout_id, generated_layouts
+        )
+
+        # ---- Metrics Description ----
+        all_headers = set(filtered_headers)
+        all_headers.update(summary_headers)
+        metrics_description = generate_metrics_description(list(all_headers))
+        if metrics_description:
+            f.write(f"{metrics_description}")
 
 
 # =============================================================================
