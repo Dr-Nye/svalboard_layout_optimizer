@@ -198,10 +198,10 @@ metrics:
       ignore_modifiers: true
 
   sfs:
-    enabled: false
+    enabled: true
     weight: 25.0
     normalization:
-      type: fixed
+      type: weight_found
       value: 1.0
     params:
       ignore_thumbs: true

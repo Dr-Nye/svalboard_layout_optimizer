@@ -15,22 +15,22 @@ use serde::Deserialize;
 #[derive(Clone, Deserialize, Debug)]
 pub struct Parameters {
     pub ignore_thumbs: bool,
-    pub ignore_modifiers: bool,
-    pub finger_factors: AHashMap<Finger, f64>,
+    pub ignore_modifiers: Option<bool>,
+    pub finger_factors: Option<AHashMap<Finger, f64>>,
 }
 
 #[derive(Clone, Debug)]
 pub struct Sfs {
     ignore_thumbs: bool,
     ignore_modifiers: bool,
-    finger_factors: AHashMap<Finger, f64>,
+    finger_factors: Option<AHashMap<Finger, f64>>,
 }
 
 impl Sfs {
     pub fn new(params: &Parameters) -> Self {
         Self {
             ignore_thumbs: params.ignore_thumbs,
-            ignore_modifiers: params.ignore_modifiers,
+            ignore_modifiers: params.ignore_modifiers.unwrap_or(false),
             finger_factors: params.finger_factors.clone(),
         }
     }
@@ -77,7 +77,11 @@ impl TrigramMetric for Sfs {
         }
 
         let finger = k1.key.finger;
-        let finger_multiplier = self.finger_factors.get(&finger).copied().unwrap_or(1.0);
+        let finger_multiplier = self
+            .finger_factors
+            .as_ref()
+            .and_then(|factors| factors.get(&finger).copied())
+            .unwrap_or(1.0);
         let cost = weight * finger_multiplier;
 
         Some(cost)
