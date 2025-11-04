@@ -172,7 +172,7 @@ tasks:
       - "{{.NGRAMS_DIR}}/eng_fra/1-grams.txt"
     cmds:
       - mkdir -p {{.NGRAMS_DIR}}/eng_fra
-      - cd ../.. && cargo run --bin ngram_merge -- ngrams/eng_fra ngrams/eng_reddit_small:70 ngrams/fra_web:30
+      - cd ../.. && cargo run --bin ngram_merge -- ngrams/eng_fra ngrams/eng_shai:70 ngrams/fra_web:30
       - uv run python ../ngrams/normalize.py {{.NGRAMS_DIR}}/eng_fra
 
   # ============================================================================
