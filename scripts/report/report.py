@@ -4,7 +4,7 @@ import csv
 import json
 import re
 from pathlib import Path
-from typing import Callable, Optional, TextIO
+from typing import Callable, TextIO
 from urllib.parse import quote
 import unicodedata
 
@@ -221,35 +221,61 @@ def drop_low_freq_entries(
 
 
 def clean_message(message: str, metric_name: str = "") -> str:
+    """Clean message for data storage."""
     prefixes = ["Finger loads % (no thumb): ", "Hand loads % (no thumb): ", "Worst: "]
     for prefix in prefixes:
-        message = message.replace(prefix, "")
+        message = message.removeprefix(prefix)
 
     # Format percentages and other numbers
-    if metric_name in ["Hand Disbalance", "Finger Balance"]:
-        decimals = BALANCE_METRIC_DECIMALS
-        message = re.sub(
-            r"(\d+\.\d+)(?!%\))", lambda m: f"{float(m.group(1)):.{decimals}f}", message
-        )
-    else:
-        decimals = DEFAULT_METRIC_DECIMALS
-        message = re.sub(
-            r"(\d+\.\d+)%,", lambda m: f"{float(m.group(1)):.{decimals}f}%,", message
-        )
-
-    if metric_name == "Bigram Statistics":
-        for pattern in BIGRAM_STAT_PATTERNS:
-            message = message.replace(f"{pattern}:", f"<u>{pattern}</u>:")
-    elif metric_name == "Trigram Statistics":
-        # Remove unwanted sub-metrics
-        message = re.sub(r",\s*3-Roll In:\s*[\d.]+%", "", message)
-        message = re.sub(r",\s*3-Roll Out:\s*[\d.]+%", "", message)
-        message = re.sub(r";\s*Other:\s*[\d.]+%", "", message)
-
-        for pattern in TRIGRAM_STAT_PATTERNS:
-            message = message.replace(f"{pattern}:", f"<u>{pattern}</u>:")
+    match metric_name:
+        case "Hand Disbalance" | "Finger Balance":
+            decimals = BALANCE_METRIC_DECIMALS
+            message = re.sub(
+                r"(\d+\.\d+)(?!%\))",
+                lambda m: f"{float(m.group(1)):.{decimals}f}",
+                message,
+            )
+        case "Trigram Statistics":
+            # Remove unwanted sub-metrics
+            decimals = DEFAULT_METRIC_DECIMALS
+            message = re.sub(
+                r"(\d+\.\d+)%,",
+                lambda m: f"{float(m.group(1)):.{decimals}f}%,",
+                message,
+            )
+            message = re.sub(r",\s*3-Roll In:\s*[\d.]+%", "", message)
+            message = re.sub(r",\s*3-Roll Out:\s*[\d.]+%", "", message)
+            message = re.sub(r";\s*Other:\s*[\d.]+%", "", message)
+        case _:
+            decimals = DEFAULT_METRIC_DECIMALS
+            message = re.sub(
+                r"(\d+\.\d+)%,",
+                lambda m: f"{float(m.group(1)):.{decimals}f}%,",
+                message,
+            )
 
     return message.strip()
+
+
+def format_message_for_markdown(message: str, metric_name: str = "") -> str:
+    """Add markdown formatting tags to message for display."""
+    match metric_name:
+        case "Bigram Statistics":
+            for pattern in BIGRAM_STAT_PATTERNS:
+                message = message.replace(f"{pattern}:", f"<u>{pattern}</u>:")
+        case "Trigram Statistics":
+            for pattern in TRIGRAM_STAT_PATTERNS:
+                message = message.replace(f"{pattern}:", f"<u>{pattern}</u>:")
+        case "Scissors":
+            # Format extracted scissor statistics
+            for pattern in SCISSOR_PATTERNS:
+                message = message.replace(f"{pattern}:", f"<u>{pattern}</u>:")
+        case "2-Rolls":
+            # Format extracted roll statistics
+            for pattern in ["Total", "In", "Out", "Center→South"]:
+                message = message.replace(f"{pattern}:", f"<u>{pattern}</u>:")
+
+    return message
 
 
 # =============================================================================
@@ -299,7 +325,7 @@ def extract_bigram_scissors(message: str) -> str:
     for pattern in SCISSOR_PATTERNS:
         value = extract_statistic_value(message, pattern)
         if value:
-            scissors.append(f"<u>{pattern}</u>: {value}")
+            scissors.append(f"{pattern}: {value}")
     return ", ".join(scissors) if scissors else ""
 
 
@@ -311,7 +337,7 @@ def extract_trigram_rolls(message: str) -> str:
         if value:
             # Shorten labels for compactness
             short_label = pattern.replace("2-Roll ", "")
-            rolls.append(f"<u>{short_label}</u>: {value}")
+            rolls.append(f"{short_label}: {value}")
     return ", ".join(rolls) if rolls else ""
 
 
@@ -337,7 +363,7 @@ def extract_trigram_sfs(message: str) -> str:
 
 # Summary table configuration: (display_header, source_metric, extractor_function)
 # extractor_function is None for direct access, or a callable for extracted values
-SUMMARY_COLUMNS_CONFIG: list[tuple[str, str, Optional[Callable[[str], str]]]] = [
+SUMMARY_COLUMNS_CONFIG: list[tuple[str, str, Callable[[str], str] | None]] = [
     ("SVG", "SVG", None),
     ("Total Cost", "Total Cost", None),
     ("Hands Disbalance", "Hands Disbalance", None),
@@ -364,11 +390,7 @@ def extract_homerow(layout: str) -> str:
     if len(layout) < 40:
         return ""
 
-    centers = []
-    for cluster_idx in range(0, 8):
-        center_pos = cluster_idx * 5 + 2
-        centers.append(layout[center_pos])
-
+    centers = [layout[cluster_idx * 5 + 2] for cluster_idx in range(8)]
     return "".join(centers)
 
 
@@ -381,23 +403,23 @@ def build_layout_row(
     row[COLUMN_HEADERS[1]] = extract_homerow(layout)  # "Homerow"
 
     for display_header, metric_name, format_type, decimals in METRICS_ORDER:
-        if format_type == "number" and display_header == "Total Cost":
-            row[display_header] = round(total_cost, decimals)
-        elif format_type == "number" and metric_name in metrics_data:
-            cost = metrics_data[metric_name]["cost"]
-            row[display_header] = round(cost, decimals)
-        elif (
-            format_type in ("message_only", "worst_only")
-            and metric_name in metrics_data
-        ):
-            message = clean_message(metrics_data[metric_name]["message"], metric_name)
-            row[display_header] = message
-        else:
-            row[display_header] = ""
+        match format_type:
+            case "number" if display_header == "Total Cost":
+                row[display_header] = round(total_cost, decimals)
+            case "number" if metric_name in metrics_data:
+                cost = metrics_data[metric_name]["cost"]
+                row[display_header] = round(cost, decimals)
+            case "message_only" | "worst_only" if metric_name in metrics_data:
+                message = clean_message(
+                    metrics_data[metric_name]["message"], metric_name
+                )
+                row[display_header] = message
+            case _:
+                row[display_header] = ""
     return row
 
 
-def parse_layouts(json_file: Path, corpus_name: Optional[str] = None) -> list[dict]:
+def parse_layouts(json_file: Path, corpus_name: str | None = None) -> list[dict]:
     """Load results and build a list of dict rows, sorted by total cost."""
 
     with open(json_file, encoding="utf-8") as f:
@@ -447,12 +469,13 @@ def export_svg(layout_lines: list[str], output_path: Path) -> None:
     for line in layout_lines:
         styled_line = ""
         for char in line:
-            if char == "□":
-                styled_line += f"[gray]{char}[/gray]"
-            elif char.isalpha():
-                styled_line += f"[yellow]{char}[/yellow]"
-            else:
-                styled_line += char
+            match char:
+                case "□":
+                    styled_line += f"[gray]{char}[/gray]"
+                case _ if char.isalpha():
+                    styled_line += f"[yellow]{char}[/yellow]"
+                case _:
+                    styled_line += char
         console.print(styled_line)
 
     console.save_svg(output_path, title="", font_aspect_ratio=1)
@@ -485,8 +508,11 @@ def parse_diagrams(txt_file: Path, output_dir: Path) -> list[tuple[str, str]]:
     generated_layouts = []
 
     for section in layout_sections:
-        layout_string_match = re.search(r"Layout string \(layer 1\):\n(.+)", section)
-        if not layout_string_match:
+        if not (
+            layout_string_match := re.search(
+                r"Layout string \(layer 1\):\n(.+)", section
+            )
+        ):
             continue
 
         layout_string = layout_string_match.group(1).strip()
@@ -625,27 +651,32 @@ def _build_summary_row_cells(
     }
 
     for header in summary_headers:
-        if header == "SVG":
-            svg_cell = (
-                f'<img src="svgs/{quote(Path(layout_to_svg[layout]).name)}" width="600">'
-                if layout in layout_to_svg
-                else ""
-            )
-            row_cells.append(_md_cell(svg_cell))
-        elif header == "Layout":
-            layout_link = f"[{layout}](#{layout_id[layout]})"
-            row_cells.append(_md_cell(layout_link))
-        else:
-            # Use configuration to determine how to extract the value
-            source_metric, extractor_fn = config_map.get(header, (None, None))
-            if extractor_fn and source_metric:
-                # Use extractor function to get value from source metric
-                source_data = rec.get(source_metric, "")
-                value = extractor_fn(source_data)
-                row_cells.append(_md_cell(value))
-            else:
-                # Direct access from record
-                row_cells.append(_md_cell(rec.get(header, "")))
+        match header:
+            case "SVG":
+                svg_cell = (
+                    f'<img src="svgs/{quote(Path(layout_to_svg[layout]).name)}" width="1000">'
+                    if layout in layout_to_svg
+                    else ""
+                )
+                row_cells.append(_md_cell(svg_cell))
+            case "Layout":
+                layout_link = f"[{layout}](#{layout_id[layout]})"
+                row_cells.append(_md_cell(layout_link))
+            case _:
+                # Use configuration to determine how to extract the value
+                source_metric, extractor_fn = config_map.get(header, (None, None))
+                if extractor_fn and source_metric:
+                    # Use extractor function to get value from source metric
+                    source_data = rec.get(source_metric, "")
+                    value = extractor_fn(source_data)
+                    # Apply markdown formatting for extracted statistics
+                    # Use the header name (not source_metric) for formatting context
+                    if header in ["Scissors", "2-Rolls"]:
+                        value = format_message_for_markdown(value, header)
+                    row_cells.append(_md_cell(value))
+                else:
+                    # Direct access from record
+                    row_cells.append(_md_cell(rec.get(header, "")))
 
     return row_cells
 
@@ -715,10 +746,13 @@ def _write_layout_details(
             metric_names, values = zip(*metrics_data)
             f.write("| " + " | ".join(metric_names) + " |\n")
             f.write("|" + "|".join(["--------"] * len(metric_names)) + "|\n")
-            # Escape all cell contents to avoid breaking the table
-            f.write("| " + " | ".join(_md_cell(v) for v in values) + " |\n")
+            # Format values for markdown and escape all cell contents to avoid breaking the table
+            formatted_values = [
+                format_message_for_markdown(v, name)
+                for name, v in zip(metric_names, values)
+            ]
+            f.write("| " + " | ".join(_md_cell(v) for v in formatted_values) + " |\n")
 
-        # Worst-cases list (bulleted; not a table, so pipes are fine)
         worst_cases = [
             (header.replace(" Worst", ""), rec.get(header, ""))
             for header in filtered_headers[1:]
@@ -726,7 +760,8 @@ def _write_layout_details(
         ]
         if worst_cases:
             for metric_name, value in worst_cases:
-                f.write(f"- **{metric_name}:** {value}\n")
+                formatted_value = format_message_for_markdown(value, metric_name)
+                f.write(f"- **{metric_name}:** {formatted_value}\n")
 
         f.write("\n---\n\n")
 
@@ -784,13 +819,13 @@ def main(
         dir_okay=False,
         readable=True,
     ),
-    out: Optional[str] = typer.Option(
+    out: str | None = typer.Option(
         None,
         "--out",
         "-o",
         help="Output directory (default: derived from input file)",
     ),
-    corpus: Optional[str] = typer.Option(
+    corpus: str | None = typer.Option(
         None,
         "--corpus",
         "-c",
@@ -806,7 +841,7 @@ def main(
         output_base = output_dir.name
     else:
         output_base = json_file.stem
-        output_dir = Path(f"{output_base}_layouts")
+        output_dir = json_file.parent / f"{output_base}_layouts"
 
     output_dir.mkdir(parents=True, exist_ok=True)
 
