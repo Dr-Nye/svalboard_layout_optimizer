@@ -74,7 +74,7 @@ metrics:
 
   sfb:
     enabled: true
-    weight: 100.0
+    weight: 150.0
     normalization:
       type: weight_found
       value: 1.0
@@ -83,7 +83,11 @@ metrics:
       default_cost: 0
       ignore_thumbs: true
       ignore_modifiers: true
+      finger_factors: *default_finger_factors
 
+      # High-frequency roll penalty
+      critical_bigram_fraction: 0.0005
+      critical_bigram_factor: 100.0
       # Format:
       #   from:
       #     to: cost
@@ -91,10 +95,10 @@ metrics:
       #     etc.
       costs:
         Center:
-          North: 3.0
+          North: 2.0
           South: 0.0
           In: 1.0
-          Out: 2.0
+          Out: 3.0
         North:
           Center: 2.0
           South: 5.0
@@ -119,17 +123,6 @@ metrics:
           Up: 0.5
         Up:
           Pad: 3.0
-
-      finger_factors:
-        Pinky: 1.5
-        Ring: 1.0
-        Middle: 1.0
-        Index: 0.75
-        Thumb: 1.0
-
-      # High-frequency roll penalty
-      critical_bigram_fraction: 0.0005
-      critical_bigram_factor: 100.0
 
   fsb:
     enabled: true
