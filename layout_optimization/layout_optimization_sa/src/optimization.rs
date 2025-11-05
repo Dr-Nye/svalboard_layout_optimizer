@@ -5,7 +5,6 @@ use layout_optimization_common::LayoutPermutator;
 
 use anyhow::Result;
 use colored::Colorize;
-use rand_xoshiro::{rand_core::SeedableRng, Xoshiro256PlusPlus};
 use serde::Deserialize;
 use std::{fs::File, sync::Arc};
 
@@ -321,8 +320,7 @@ pub fn optimize(
 
     // Create new SA solver with some parameters (see docs for details)
     // This essentially just prepares the SA solver. It is not run yet, nor does it know anything about the problem it is about to solve.
-    let rng = Xoshiro256PlusPlus::try_from_os_rng().unwrap();
-    let solver = SimulatedAnnealing::new_with_rng(init_temp, rng)
+    let solver = SimulatedAnnealing::new(init_temp)
         .unwrap()
         // Optional: Define temperature function (defaults to `SATempFunc::TemperatureFast`)
         .with_temp_func(SATempFunc::Exponential(0.998))
