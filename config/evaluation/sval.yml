@@ -220,18 +220,25 @@ metrics:
       # key positions as matrix positions (from config/keyboard/sval.yml) and the corresponding costs
       # [from_position, to_position]: weight
       matrix_positions:
-        # Finger repeats on same key
-        [[2, 1], [2, 1]]: 0.5 # left pinky north
-        [[1, 2], [1, 2]]: 0.5 # left pinky west
+        # Same-key repeats on north keys
+        [[2, 1], [2, 1]]: 1 # left pinky north
+        [[5, 1], [5, 1]]: 1 # left ring north
+        [[8, 1], [8, 1]]: 1 # left middle north
+        [[11, 1], [11, 1]]: 1 # left index north
+        [[14, 1], [14, 1]]: 1 # right index north
+        [[17, 1], [17, 1]]: 1 # right middle north
+        [[20, 1], [20, 1]]: 1 # right ring north
+        [[23, 1], [23, 1]]: 1 # right pinky north
+
+        # Same-key repeats on pinky lateral keys
+        [[1, 2], [1, 2]]: 1 # left pinky west
         [[2, 2], [2, 2]]: 0.3 # left pinky center
-        [[3, 2], [3, 2]]: 0.5 # left pinky east
-        [[2, 3], [2, 3]]: 0.5 # left pinky south
-        # Right pinky positions
-        [[23, 1], [23, 1]]: 0.5 # right pinky north
-        [[22, 2], [22, 2]]: 0.5 # right pinky west
+        [[3, 2], [3, 2]]: 1 # left pinky east
+        [[2, 3], [2, 3]]: 1 # left pinky south
+        [[22, 2], [22, 2]]: 1 # right pinky west
         [[23, 2], [23, 2]]: 0.3 # right pinky center
-        [[24, 2], [24, 2]]: 0.5 # right pinky east
-        [[23, 3], [23, 3]]: 0.5 # right pinky south
+        [[24, 2], [24, 2]]: 1 # right pinky east
+        [[23, 3], [23, 3]]: 1 # right pinky south
 
   character_constraints:
     enabled: true
@@ -247,7 +254,7 @@ metrics:
         # High-frequency double consonants (l,s,t,f,p,r)
         # Only allowed on center and south positions of all fingers
 
-        # Mid-frequency double consonants (m,c,n,g,d)
+        # Mid-frequency double consonants (m,c,n)
         # Allowed on center and south, tolerated on strong fingers laterals, forbidden on north
 
         # === High-frequency double consonants ===
@@ -525,56 +532,6 @@ metrics:
           [22, 2]: 10 # west
           [24, 2]: 10 # east
           [23, 1]: 10 # north
-        d:
-          # Left pinky
-          [3, 2]: 10 # west
-          [1, 2]: 10 # east
-          [2, 1]: 10 # north
-          # Left ring
-          [6, 2]: 1 # west
-          [4, 2]: 1 # east
-          [5, 1]: 10 # north
-          # Left middle
-          [8, 1]: 10 # north
-          # Left index
-          [11, 1]: 10 # north
-          # Right index
-          [14, 1]: 10 # north
-          # Right middle
-          [17, 1]: 10 # north
-          # Right ring
-          [19, 2]: 1 # west
-          [21, 2]: 1 # east
-          [20, 1]: 10 # north
-          # Right pinky
-          [22, 2]: 10 # west
-          [24, 2]: 10 # east
-          [23, 1]: 10 # north
-        g:
-          # Left pinky
-          [3, 2]: 10 # west
-          [1, 2]: 10 # east
-          [2, 1]: 10 # north
-          # Left ring
-          [6, 2]: 1 # west
-          [4, 2]: 1 # east
-          [5, 1]: 10 # north
-          # Left middle
-          [8, 1]: 10 # north
-          # Left index
-          [11, 1]: 10 # north
-          # Right index
-          [14, 1]: 10 # north
-          # Right middle
-          [17, 1]: 10 # north
-          # Right ring
-          [19, 2]: 1 # west
-          [21, 2]: 1 # east
-          [20, 1]: 10 # north
-          # Right pinky
-          [22, 2]: 10 # west
-          [24, 2]: 10 # east
-          [23, 1]: 10 # north
 
         # === PUNCTUATION MARKS ===
         # Forbid punctuation marks on center keys and south non-pinky
@@ -586,38 +543,6 @@ metrics:
           [5, 3]: 10 # south
           # Left middle
           [8, 2]: 10 # center
-          [8, 3]: 10 # south
-          # Left index
-          [11, 2]: 10 # center
-          [11, 3]: 10 # south
-          # Right index
-          [14, 2]: 10 # center
-          [14, 3]: 10 # south
-          # Right middle
-          [17, 2]: 10 # center
-          [17, 3]: 10 # south
-          # Right ring
-          [20, 2]: 10 # center
-          [20, 3]: 10 # south
-          # Right pinky
-          [23, 2]: 10 # center
-        ".":
-          # Left pinky
-          [2, 1]: 10 # north
-          [1, 2]: 10 # east
-          [2, 2]: 10 # center
-          [3, 2]: 10 # west
-          # Left ring
-          [5, 1]: 10 # north
-          [4, 2]: 10 # east
-          [5, 2]: 10 # center
-          [6, 2]: 10 # west
-          [5, 3]: 10 # south
-          # Left middle
-          [8, 1]: 10 # north
-          [7, 2]: 10 # east
-          [8, 2]: 10 # center
-          [9, 2]: 10 # west
           [8, 3]: 10 # south
           # Left index
           [11, 1]: 10 # north
