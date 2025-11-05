@@ -217,6 +217,53 @@ The chosen metric weights aim to produce balanced layouts that:
 4. **Reward natural motions**: Center→South movements and smooth finger transitions
 5. **Balance typing flow**: Maintain good hand alternation while allowing efficient same-hand patterns
 
+## Recommended Optimization Workflow
+
+The optimizer can get stuck in local minima, so starting from well-performing layouts yields better results than random initialization. Here's a proven iterative approach:
+
+1. **Gather established layouts**: Create a file with modern, well-designed layouts (one per line):
+
+   ```bash
+   # Add layouts like Hands Down variants or other proven designs
+   echo "'□cqb-□i□y□?e□o□.a,um□hklgjt□dwxn□pvzs□fr" > layouts.txt
+   echo "your_other_layout_here" >> layouts.txt
+   ```
+
+2. **Run optimization with fixed clusters**: Lock the vowel and consonant clusters that form the backbone of modern layouts:
+
+   ```bash
+   task optimize CORPUS=eng_shai IN_LAYOUT_FILE=layouts.txt -- --fix 'yiouearsnth'
+   ```
+
+   This keeps proven letter groups (vowels + high-frequency consonants like 'snth') in place while optimizing around them.
+
+3. **Compare results**: Review the generated report in `evaluation/eng_shai/`:
+
+   - Check the CSV for metric comparisons
+   - Review the markdown report for detailed analysis
+   - Look for layouts that score well across multiple metrics
+
+4. **Refine metrics if needed**: If layouts you know are good score poorly:
+
+   - Adjust metric weights and parameters in `config/evaluation/sval.yml`
+   - Adjust key costs in `config/keyboard/sval.yml` (rarely needed - only affects `key_costs` metric)
+   - Re-evaluate to verify improvements
+
+5. **Iterate**: Keep top performers, add them to your layouts file, and repeat
+
+**Escaping local minima**: If you want to explore variations of a specific layout, make small manual tweaks (swap 1-2 letters) and lock them:
+
+```bash
+# Direct binary usage for fine-grained control
+N_WORST=5 SHOW_WORST=true cargo run --bin optimize_genetic -- \
+  --layout-config config/keyboard/sval.yml \
+  --ngrams ngrams/eng_shai \
+  --fix "ioueansthy" \
+  --start-layout "□□y□i,□o□u□□e□a.-h'lk?tmgxjnqdzbs□f□wcvpr"
+```
+
+This approach adapts proven split-keyboard principles to Svalboard geometry rather than trying to reinvent layouts from scratch.
+
 ## Advanced Usage
 
 ### Direct Binary Usage
@@ -286,13 +333,6 @@ echo "'□cqb-□i□y□?e□o□.a,um□hklgjt□dwxn□pvzs□fr" > eng_shai_
 # Or specify a different file
 task optimize CORPUS=eng_shai IN_LAYOUT_FILE=my_layouts.txt
 ```
-
-### Optimization produces poor results
-
-- **Check your corpus**: Make sure the ngram files match your target language
-- **Adjust starting layouts**: Try different starting points or multiple starting layouts
-- **Review metrics**: The weights in `config/evaluation/sval.yml` can be adjusted for your preferences
-- **Fix important keys**: Use `-- --fix 'keys'` to keep certain letters in place
 
 ## Acknowledgments
 
