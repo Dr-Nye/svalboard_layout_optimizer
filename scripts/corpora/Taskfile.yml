@@ -6,6 +6,11 @@ vars:
   # French corpus configuration
   FRENCH_CORPUS_NAMES: [fra_news_2024_1M, fra-eu_web_2017_1M, fra_wikipedia_2021_1M]
   FRENCH_NGRAM_DIRS: [fra_news, fra_web, fra_wikipedia]
+  # Personal corpus configuration
+  PCORPORA_DIR: ../../../corpora
+  PERSONAL_CORPUS_NAMES: [per_disc, per_latex, per_prog]
+  PERSONAL_NGRAM_DIRS: [per_disc, per_latex, per_prog]
+
 
 tasks:
   default:
@@ -47,6 +52,20 @@ tasks:
       - "{{.CORPORA_DIR}}/{{.OUTPUT_FILE}}"
     cmds:
       - uv run {{.CLEANER_SCRIPT}} {{.CORPORA_DIR}}/{{.INPUT_FILE}} {{.CORPORA_DIR}}/{{.OUTPUT_FILE}}
+      
+  _clean-pcorpus:
+    internal: true
+    desc: Clean a corpus file with language-specific rules
+    vars:
+      INPUT_FILE: "{{.INPUT_FILE}}"
+      OUTPUT_FILE: "{{.OUTPUT_FILE}}"
+      CLEANER_SCRIPT: "{{.CLEANER_SCRIPT}}"
+    sources:
+      - "{{.PCORPORA_DIR}}/{{.INPUT_FILE}}"
+    generates:
+      - "{{.PCORPORA_DIR}}/{{.OUTPUT_FILE}}"
+    cmds:
+      - uv run {{.CLEANER_SCRIPT}} {{.PCORPORA_DIR}}/{{.INPUT_FILE}} {{.PCORPORA_DIR}}/{{.OUTPUT_FILE}}
 
   _generate-ngrams:
     internal: true
@@ -62,6 +81,21 @@ tasks:
       - mkdir -p {{.NGRAMS_DIR}}/{{.OUTPUT_DIR}}
       - cd ../.. && cargo run --bin ngrams -- scripts/corpora/{{.CORPORA_DIR}}/{{.INPUT_FILE}} ngrams/{{.OUTPUT_DIR}}
       - uv run python ../ngrams/normalize.py {{.NGRAMS_DIR}}/{{.OUTPUT_DIR}}
+    
+  _generate-pngrams:
+    internal: true
+    desc: Generate ngrams for a cleaned corpus
+    vars:
+      INPUT_FILE: "{{.INPUT_FILE}}"
+      OUTPUT_DIR: "{{.OUTPUT_DIR}}"
+    sources:
+      - "{{.PCORPORA_DIR}}/{{.INPUT_FILE}}"
+    generates:
+      - "{{.NGRAMS_DIR}}/{{.OUTPUT_DIR}}/1-grams.txt"
+    cmds:
+      - mkdir -p {{.NGRAMS_DIR}}/{{.OUTPUT_DIR}}
+      - cd ../.. && cargo run --bin ngrams -- scripts/corpora/{{.PCORPORA_DIR}}/{{.INPUT_FILE}} ngrams/{{.OUTPUT_DIR}}
+      - uv run python ../ngrams/normalize.py {{.NGRAMS_DIR}}/{{.OUTPUT_DIR}}  
 
   # ============================================================================
   # Reddit pipeline
@@ -174,6 +208,56 @@ tasks:
       - mkdir -p {{.NGRAMS_DIR}}/eng_fra
       - cd ../.. && cargo run --bin ngram_merge -- ngrams/eng_fra ngrams/eng_shai:70 ngrams/fra_web:30
       - uv run python ../ngrams/normalize.py {{.NGRAMS_DIR}}/eng_fra
+
+ # ============================================================================
+  # Custom Personal pipeline
+  # ============================================================================
+  clean-personal:
+    desc: Clean Personal corpora
+    method: checksum
+    cmds:
+      - for: { var: PERSONAL_CORPUS_NAMES }
+        task: _clean-pcorpus
+        vars:
+          INPUT_FILE: "{{.ITEM}}-sentences.txt"
+          OUTPUT_FILE: "{{.ITEM}}-cleaned.txt"
+          CLEANER_SCRIPT: "-m corpora_builder.corpus_cleaner"
+
+  generate-personal-ngrams:
+    desc: Generate Personal ngrams
+    deps: [clean-personal]
+    vars:
+      INDICES: '{{untilStep 0 (len .PERSONAL_CORPUS_NAMES) 1 | join " "}}'
+    cmds:
+      - for:
+          var: INDICES
+          split: " "
+        task: _generate-pngrams
+        vars:
+          INPUT_FILE: "{{index .PERSONAL_CORPUS_NAMES (atoi .ITEM)}}-cleaned.txt"
+          OUTPUT_DIR: "{{index .PERSONAL_NGRAM_DIRS (atoi .ITEM)}}"
+
+  merge-personal:
+    desc: Merge Personal ngrams (discord 50%, latex 30%, programming 20%)
+    deps: [generate-personal-ngrams]
+    sources:
+      - "{{.NGRAMS_DIR}}/per_disc/1-grams.txt"
+      - "{{.NGRAMS_DIR}}/per_latex/1-grams.txt"
+      - "{{.NGRAMS_DIR}}/per_prog/1-grams.txt"
+    generates:
+      - "{{.NGRAMS_DIR}}/per_total/1-grams.txt"
+    cmds:
+      - mkdir -p {{.NGRAMS_DIR}}/per_total
+      - cd ../.. && cargo run --bin ngram_merge -- ngrams/per_total ngrams/per_disc:70 ngrams/per_latex:30 ngrams/per_prog:0
+      - uv run python ../ngrams/normalize.py {{.NGRAMS_DIR}}/per_total
+
+  personal:
+    desc: Build Personal ngrams (complete pipeline)
+    deps: [merge-personal]
+
+
+
+
 
   # ============================================================================
   # Meta tasks

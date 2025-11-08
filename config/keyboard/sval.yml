@@ -282,20 +282,20 @@ base_layout:
     # fingers
     - [
       # left pinky
-             ["?"],
-      ["□"], ["c"], ["□"],
+             ["?["],
+      ["ö"], ["c]"], ["ä"],
              ["b"],
       # left ring
              ["-"],
-      ["□"], ["i"], ["q"],
+      ["ü"], ["i"], ["q"],
              ["y"],
       # left middle
              ["'"],
-      ["□"], ["e"], ["z"],
+      [")"], ["e"], ["z"],
              ["o"],
       # left index
              ["."],
-      [","],["a"], ["□"],
+      [","],["a"], ["("],
              ["u"],
       # right index
              ["m"],
@@ -303,11 +303,11 @@ base_layout:
              ["l"],
       # right middle
              ["g"],
-      ["□"], ["t"], ["x"],
+      ["{"], ["t"], ["x"],
              ["d"],
       # right ring
              ["w"],
-      ["k"], ["n"], ["□"],
+      ["k"], ["n"], ["}"],
              ["p"],
       # right pinky
              ["v"],
@@ -387,7 +387,7 @@ base_layout:
 
   # for GroupedLayoutGenerator:
   # number of consecutive symbols from base layout to group together generating a layout
-  grouped_layers: 1
+  grouped_layers: 2
 
   # modifier types can be "hold", "one_shot", and "long_press"
   #

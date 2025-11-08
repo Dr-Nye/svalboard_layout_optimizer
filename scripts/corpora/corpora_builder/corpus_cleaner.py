@@ -31,8 +31,8 @@ DEFAULT_CHUNK_SIZE = 50 * 1024 * 1024  # 50MB
 DEFAULT_MERGE_LINES_RATIO = 0.2  # Keep 1 in 5 newlines
 
 # Base typable characters (standard US keyboard)
-TYPABLE_CHARS = "qwertyuiopasdfghjklzxcvbnmQWERTYUIOPASDFGHJKLZXCVBNM1234567890"
-TYPABLE_CHARS += r""",.!?;:_'"^~#%&/\()[]{}<>=+-*`@$€|"""
+TYPABLE_CHARS = "qwertyuiopasdfghjklzxcvbnmQWERTYUIOPASDFGHJKLZXCVBNM1234567890üöä"
+TYPABLE_CHARS += r""",.!?;:_'"{}^~%&/\()[]<>=+-*`@$€|"""
 TYPABLE_CHARS += " \t\n"
 
 # French-specific characters
@@ -110,7 +110,7 @@ ACCENT_TO_ASCII = {
     "Ú": "U",
     "Ù": "U",
     "Û": "U",
-    "Ü": "U",
+    #"Ü": "U",
     "Ý": "Y",
     "à": "a",
     "á": "a",
@@ -135,10 +135,10 @@ ACCENT_TO_ASCII = {
     "õ": "o",
     "ø": "o",
     "œ": "oe",
-    "ß": "ss",
+    #"ß": "ss",
     "ú": "u",
     "û": "u",
-    "ü": "u",
+    #"ü": "u",
     "ý": "y",
     "ÿ": "y",
     "ā": "a",
